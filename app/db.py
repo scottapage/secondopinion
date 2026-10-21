@@ -318,7 +318,8 @@ def tx():
         conn.close()
 
 
-MIGRATIONS = ["ALTER TABLE invoices ADD COLUMN learning_state TEXT"]
+MIGRATIONS = ["ALTER TABLE invoices ADD COLUMN learning_state TEXT",
+              "ALTER TABLE submissions ADD COLUMN contact_email TEXT"]
 
 
 def init():

@@ -42,6 +42,16 @@ def submission_summary(submission_id):
              (time.time(), str(e)[:300], submission_id))
 
 
+def session_summary(to, session_id, claim_url):
+    """Summary for a web upload, sent to an email the visitor typed in. The button claims their bills."""
+    a = analysis.build(session_id=session_id)
+    ctx = {"a": a, "registered": False, "ok": [], "problems": [], "email": to, "cta_url": claim_url,
+           "cta_label": "Save my analysis and see the detail",
+           "spend_chart": charts.monthly_spend(a) if a.get("has_data") else None}
+    mailer.send(to, "Your mobile bill analysis", render("email/summary.html", **ctx),
+                render("email/summary.txt", **ctx))
+
+
 def no_attachment(to, subject):
     html = render("email/no_attachment.html", email=to)
     mailer.send(to, "Re: " + (subject or "your email"), html,

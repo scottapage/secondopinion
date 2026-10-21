@@ -2,7 +2,8 @@
 {% block title %}Your bill analysis - SecondOpinion{% endblock %}
 {% block body %}
 <section class="section" style="padding-top:44px"><div class="wrap">
-  <div id="processing">
+  {% if example %}<div class="alert info" style="margin:0 0 22px;font-size:15px">This is an example for a made-up business, <b>Harbourside Electrical Ltd</b>, so you can see what you'll get. <a href="/">Analyse your own bills &rarr;</a></div>{% endif %}
+  <div id="processing" class="{{ 'hidden' if example }}">
     <div class="eyebrow">Analysing</div>
     <h2 id="procTitle">Reading your bills...</h2>
     <p class="loading-note">We're reading every line of your bill. This usually takes 20-60 seconds per bill.</p>
@@ -17,8 +18,9 @@
         <p class="muted" style="margin-top:8px" id="subline"></p>
       </div>
       <div style="display:flex;gap:10px;flex-wrap:wrap">
+        {% if example %}<a class="btn lg" href="/">Analyse my own bills</a>{% else %}
         <a class="btn ghost" href="/">Add more bills</a>
-        <a class="btn orange" href="/offer">Make me an offer</a>
+        <a class="btn orange" href="/offer">Make me an offer</a>{% endif %}
       </div>
     </div>
 
@@ -38,14 +40,26 @@
       <div class="table-wrap"><table class="data" id="lineTable"></table></div>
     </div>
 
+    {% if not example %}
+    <div class="card" id="emailCard" style="margin-top:20px;display:flex;gap:24px;align-items:center;flex-wrap:wrap;justify-content:space-between">
+      <div style="flex:1;min-width:260px"><h3>Email me this summary</h3><p class="small muted" style="margin-top:4px">We'll send it with a link to save your analysis - no password needed yet.</p></div>
+      <form id="emailForm" style="display:flex;gap:8px;flex:1;min-width:280px"><input type="email" id="summaryEmail" placeholder="you@company.co.nz" required autocomplete="email" style="border-radius:999px"><button class="btn">Send</button></form>
+      <div id="emailMsg" class="small" style="width:100%"></div>
+    </div>
+    {% endif %}
     <div class="card notes hidden" id="notesTeaser" style="margin-top:20px"><h3>Our expert has notes on your bills</h3>
       <div id="notesTitles" style="margin-top:10px"></div>
       <a class="btn sm" href="/register?next=/dashboard" style="margin-top:14px">Create a free account to read them</a></div>
+    <div class="card notes hidden" id="notesFull" style="margin-top:20px"><div class="card-head"><div><h3>Our expert's take</h3><p class="small muted">Written from the bills and the current plans on each provider's website.</p></div></div><div class="notes-grid" id="notesList"></div></div>
 
     <h2 style="margin:48px 0 6px">What we noticed</h2>
-    <p class="muted" style="margin-bottom:20px">Create a free account to see the detail behind each finding - and how much you could save.</p>
+    <p class="muted" style="margin-bottom:20px">{% if example %}Each finding comes with the lines behind it and an estimated saving.{% else %}Create a free account to see the detail behind each finding - and how much you could save.{% endif %}</p>
     <div class="insights" id="insights"></div>
 
+    {% if example %}
+    <div class="band" style="margin-top:40px"><div><h2>Ready for your own second opinion?</h2><p>Drop in one or more recent Spark, One NZ or 2degrees bills. It takes about a minute, and you'll see your own version of this page.</p></div>
+      <div class="actions"><a class="btn lg" href="/">Analyse my bills</a><a href="mailto:{{ mail_address }}" style="color:#B3E2F3;text-align:center;font-size:14px">or email them to {{ mail_address }}</a></div></div>
+    {% else %}
     <div class="band" style="margin-top:40px">
       <div>
         <h2>See the full picture</h2>
@@ -63,6 +77,7 @@
         <a href="/login?next=/dashboard" style="color:#B3E2F3;text-align:center;font-size:14px">Already registered? Log in</a>
       </div>
     </div>
+    {% endif %}
   </div>
 
   <div id="nothing" class="hidden">
@@ -76,6 +91,6 @@
 {% block scripts %}
 <script src="/static/vendor/echarts.min.js"></script>
 <script src="/static/js/charts.js?v={{ version }}"></script>
-<script>window.SO_TOKEN = {{ token|tojson }}; window.SO_LOGGED_IN = {{ 'true' if logged_in else 'false' }};</script>
+<script>window.SO_TOKEN = {{ token|tojson }}; window.SO_LOGGED_IN = {{ 'true' if logged_in else 'false' }}; window.SO_EXAMPLE = {{ 'true' if example else 'false' }};</script>
 <script src="/static/js/results.js?v={{ version }}"></script>
 {% endblock %}

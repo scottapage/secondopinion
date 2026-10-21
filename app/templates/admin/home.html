@@ -1,9 +1,9 @@
 {% extends "admin/_base.html" %}
 {% block admin %}
 <div class="card" style="margin-bottom:20px">
-  <div class="card-head"><div><h3>Last 24 hours</h3><p class="small muted">Human visits only (bots excluded). Refresh to update.</p></div></div>
+  <div class="card-head"><div><h3>Last 24 hours</h3><p class="small muted">Real browsers only: a visit counts when the page actually loads and runs, so scanners and bots are excluded. Refresh to update.</p></div></div>
   <div class="kpis" style="grid-template-columns:repeat(auto-fit,minmax(130px,1fr))">
-    {% for label, v in [('Visitors', live.visitors), ('Page views', live.page_views), ('Uploads', live.uploads), ('Emails in', live.emails_in), ('Registrations', live.registrations), ('AI questions', live.ai_questions), ('Offer requests', live.offer_requests), ('Errors', live.errors)] %}
+    {% for label, v in [('Visitors', live.visitors), ('Page views', live.page_views), ('Viewed example', live.example_views), ('Touched upload', live.upload_intent), ('Uploads', live.uploads), ('Emails in', live.emails_in), ('Emailed summary', live.emails_captured), ('Registrations', live.registrations), ('AI questions', live.ai_questions), ('Offer requests', live.offer_requests), ('Errors', live.errors)] %}
     <div class="kpi" style="padding:14px 16px"><div class="label">{{ label }}</div><div class="value" style="font-size:24px{{ ';color:#F1600D' if label == 'Errors' and v }}">{{ v }}</div></div>
     {% endfor %}
   </div>
@@ -23,9 +23,9 @@
 <div class="grid-main" style="margin-top:20px">
   <div class="card"><h3>Activity - last 30 days</h3><div id="daily" class="chart"></div></div>
   <div class="card"><h3>Funnel</h3>
-    {% set f = s.funnel %}{% set top = [f.submitters or 0, 1]|max %}
+    {% set f = s.funnel %}{% set top = [f.visitors or 0, f.submitters or 0, 1]|max %}
     <div class="funnel" style="margin-top:16px">
-      {% for label, v in [('Submitted bills', f.submitters), ('Viewed results', f.results_views), ('Registered', f.registered), ('Used dashboard', f.dashboard_users), ('Asked AI', f.chat_users), ('Requested offer', f.offer_requests)] %}
+      {% for label, v in [('Visitors', f.visitors), ('Viewed example', f.example_views), ('Touched upload box', f.upload_intent), ('Submitted bills', f.submitters), ('Viewed results', f.results_views), ('Emailed summary', f.emails_captured), ('Registered', f.registered), ('Used dashboard', f.dashboard_users), ('Asked AI', f.chat_users), ('Requested offer', f.offer_requests)] %}
       <div class="row"><span>{{ label }}</span><div class="bar" style="width:{{ (100 * (v or 0) / top)|round }}%"></div><b>{{ v or 0 }}</b></div>
       {% endfor %}
     </div>

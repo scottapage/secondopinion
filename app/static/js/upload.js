@@ -27,6 +27,7 @@
 
   function add(fl) {
     err.classList.add('hidden');
+    if (fl && fl.length && window.soTrack) { touched(); soTrack('files_selected'); }
     for (const f of fl) {
       const isPdf = f.type === 'application/pdf' || /\.pdf$/i.test(f.name);
       if (!isPdf) { showErr('"' + f.name + '" isn\'t a PDF. We accept PDF bills only.'); continue; }
@@ -37,7 +38,10 @@
   }
   function showErr(m) { err.textContent = m; err.classList.remove('hidden'); }
 
-  inner.addEventListener('click', () => input.click());
+  let intent = false;
+  const touched = () => { if (!intent) { intent = true; window.soTrack && soTrack('upload_intent'); } };
+  inner.addEventListener('click', () => { touched(); input.click(); });
+  drop.addEventListener('dragenter', touched);
   input.addEventListener('change', () => { add(input.files); input.value = ''; });
   ['dragenter', 'dragover'].forEach(e => drop.addEventListener(e, ev => { ev.preventDefault(); drop.classList.add('over'); }));
   ['dragleave', 'drop'].forEach(e => drop.addEventListener(e, ev => { ev.preventDefault(); drop.classList.remove('over'); }));

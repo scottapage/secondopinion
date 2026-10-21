@@ -14,8 +14,8 @@ from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.sessions import SessionMiddleware
 
-from . import analysis, catalogue, chat, db, extract, ingest, learning, mailer, notify, security
-from .config import CHART_DIR, DATA_DIR, MAX_UPLOAD_MB, SECRET_KEY, SECRET_SETTINGS, SETUP_TOKEN, SUPERADMIN_EMAIL
+from . import analysis, catalogue, chat, db, example, extract, ingest, learning, mailer, notify, security
+from .config import BASE_URL, CHART_DIR, DATA_DIR, MAX_UPLOAD_MB, SECRET_KEY, SECRET_SETTINGS, SETUP_TOKEN, SUPERADMIN_EMAIL
 from .tpl import render
 
 db.init()
@@ -38,7 +38,7 @@ SKIP_PREFIXES = ("/static", "/api/", "/c/", "/healthz", "/setup", "/invoice/", "
 
 @app.middleware("http")
 async def track(request: Request, call_next):
-    """Record page views (humans only) and unhandled errors in the events table."""
+    """Record unhandled errors in the events table (page views come from the browser beacon, /api/pv)."""
     path = request.url.path
     try:
         response = await call_next(request)
@@ -47,16 +47,6 @@ async def track(request: Request, call_next):
         raise
     if response.status_code >= 500:
         db.log_event("error", None, None, path=path, status=response.status_code)
-    ua = request.headers.get("user-agent", "")
-    if (request.method == "GET" and not path.startswith(SKIP_PREFIXES) and response.status_code < 400
-            and ua and not BOT_RE.search(ua)):
-        ref = request.headers.get("referer", "")
-        ref_host = re.sub(r"^https?://([^/]+).*$", r"\1", ref) if ref else ""
-        if "secondopinion.co.nz" in ref_host or "sslip.io" in ref_host:
-            ref_host = ""
-        sess = request.scope.get("session") or {}
-        db.log_event("page_view", sess.get("email"), sess.get("sid"), path=path[:120],
-                     ref=ref_host[:80] or None, device="mobile" if re.search(r"Mobi|Android|iPhone", ua) else "desktop")
     return response
 
 
@@ -198,6 +188,94 @@ def api_analysis(request: Request, as_email: str = None, account: str = None):
     a = analysis.build(session_id=sess)
     a["notes"] = [{"title": n["title"]} for n in learning.notes_for(session_id=sess)]
     return JSONResponse(_clean(_teaser(a)))
+
+
+# ---------- visitor tracking (browser beacon: scanners that don't run the page are not counted) ----------
+
+BEACON_EVENTS = {"upload_intent", "files_selected", "example_cta", "email_form_shown"}
+
+
+@app.post("/api/pv")
+async def page_view_beacon(request: Request):
+    body = await request.json()
+    ua = request.headers.get("user-agent", "")
+    if BOT_RE.search(ua):
+        return {"ok": True}
+    kind = body.get("kind") or "page_view"
+    if kind != "page_view" and kind not in BEACON_EVENTS:
+        raise HTTPException(400)
+    ref_host = re.sub(r"^https?://([^/]+).*$", r"\1", str(body.get("ref") or ""))[:80]
+    if "secondopinion.co.nz" in ref_host or "sslip.io" in ref_host:
+        ref_host = ""
+    meta = {"js": 1, "path": str(body.get("path") or "")[:120],
+            "device": "mobile" if re.search(r"Mobi|Android|iPhone", ua) else "desktop"}
+    if ref_host:
+        meta["ref"] = ref_host
+    db.log_event(kind, current_email(request), sid(request), **meta)
+    return {"ok": True}
+
+
+# ---------- public example ----------
+
+@app.get("/example", response_class=HTMLResponse)
+def example_page(request: Request):
+    db.log_event("example_viewed", current_email(request), sid(request))
+    return page(request, "results.html", token="", logged_in=False, sub=None, example=True)
+
+
+@app.get("/api/example")
+def api_example():
+    a = analysis.build(email=example.EMAIL)
+    a["notes"] = learning.notes_for(example.EMAIL)
+    a["example"] = True
+    return JSONResponse(_clean(a))
+
+
+# ---------- "email me this summary" for people who haven't registered ----------
+
+from itsdangerous import BadSignature, URLSafeTimedSerializer  # noqa: E402
+
+CLAIMS = URLSafeTimedSerializer(SECRET_KEY, salt="claim")
+
+
+@app.post("/api/email-summary")
+async def email_summary(request: Request):
+    body = await request.json()
+    email = str(body.get("email") or "").strip().lower()
+    if not EMAIL_RE.match(email):
+        return JSONResponse({"error": "Please enter a valid email address."}, 400)
+    session_id = sid(request)
+    last = request.session.get("last_summary_email", 0)
+    if time.time() - last < 60:
+        return JSONResponse({"error": "We've just sent one - please check your inbox."}, 429)
+    request.session["last_summary_email"] = time.time()
+    db.x("UPDATE submissions SET contact_email=? WHERE session_id=? AND email IS NULL", (email, session_id))
+    token = CLAIMS.dumps({"sid": session_id, "email": email})
+    try:
+        await asyncio.to_thread(notify.session_summary, email, session_id, f"{BASE_URL}/claim/{token}")
+    except Exception as e:
+        return JSONResponse({"error": f"We couldn't send the email ({type(e).__name__}). Please try again."}, 500)
+    db.log_event("email_captured", email, session_id)
+    return {"ok": True}
+
+
+@app.get("/claim/{token}", response_class=HTMLResponse)
+def claim(request: Request, token: str):
+    """The link in the summary email. Clicking it proves the person owns the address, so the bills uploaded in
+    that browser session are attached to it."""
+    try:
+        data = CLAIMS.loads(token, max_age=60 * 60 * 24 * 30)
+    except BadSignature:
+        return _auth(request, "register", error="That link has expired - enter your email to get a new code.")
+    email = data["email"]
+    ingest.claim_session(data["sid"], email)
+    db.log_event("email_verified_by_link", email, data["sid"])
+    user = db.q1("SELECT * FROM users WHERE email=?", (email,))
+    if user and user["password_hash"]:
+        return _auth(request, "login", email=email, next="/dashboard",
+                     info="Your bills have been added to your account - log in to see the full analysis.")
+    request.session["verified_email"] = email
+    return _auth(request, "password", email=email, next="/dashboard", user=user)
 
 
 @app.get("/c/{name}")
@@ -695,8 +773,8 @@ def activity(hours=24):
     since = time.time() - hours * 3600
     ev = db.q("SELECT kind, email, session_id, meta, created_at FROM events WHERE created_at>? ORDER BY id DESC",
               (since,))
-    # Only views recorded by the tracking middleware (they carry a device); older entries included bots
-    views = [e for e in ev if e["kind"] == "page_view" and "device" in (e["meta"] or "")]
+    # Only views confirmed by the in-page beacon (a real browser that ran the page's script)
+    views = [e for e in ev if e["kind"] == "page_view" and '"js": 1' in (e["meta"] or "")]
     metas = [json.loads(e["meta"] or "{}") for e in views]
     count = lambda k: sum(1 for e in ev if e["kind"] == k)
     tally = lambda key: sorted(
@@ -708,6 +786,8 @@ def activity(hours=24):
         "visitors": len({e["session_id"] for e in views if e["session_id"]}),
         "uploads": count("upload"), "emails_in": count("email_received"), "registrations": count("registered"),
         "results_views": count("results_viewed"), "dashboard_views": count("dashboard_viewed"),
+        "upload_intent": len({e["session_id"] for e in ev if e["kind"] == "upload_intent"}),
+        "example_views": count("example_viewed"), "emails_captured": count("email_captured"),
         "ai_questions": count("chat"), "offer_requests": count("offer_request"), "errors": count("error"),
         "pages": tally("path")[:10], "referrers": tally("ref")[:10], "devices": tally("device"),
         "bills": db.q("SELECT status, COUNT(*) n FROM invoices WHERE created_at>? GROUP BY status", (since,)),

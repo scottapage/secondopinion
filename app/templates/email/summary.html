@@ -55,7 +55,7 @@
       <div style="background:#E0F3FA;border-radius:12px;padding:20px;">
         <div style="font-size:17px;font-weight:800;color:#003660;">See the full picture - free</div>
         <div style="font-size:14px;line-height:21px;color:#1D292E;padding:6px 0 16px 0;">Create an account to see which lines and plans are costing you, how usage is trending month to month, and get a tailored offer. Your bills are already waiting for you.</div>
-        {% with href=cta_url, label="Create your free account" %}{% include "email/_button.html" %}{% endwith %}
+        {% with href=cta_url, label=cta_label|default("Create your free account") %}{% include "email/_button.html" %}{% endwith %}
       </div>
     {% endif %}
   </td></tr>

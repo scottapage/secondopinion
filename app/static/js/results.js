@@ -29,7 +29,7 @@
   let A, metric = 'spend', selected = new Set();
 
   async function loadAnalysis(subInvoices) {
-    A = await (await fetch('/api/analysis')).json();
+    A = await (await fetch(SO_EXAMPLE ? '/api/example' : '/api/analysis')).json();
     if (!A.has_data) {
       $('processing').classList.add('hidden'); $('nothing').classList.remove('hidden');
       $('problems').innerHTML = subInvoices.map(progressRow).join('');
@@ -50,7 +50,10 @@
 
     A.lines.slice(0, Math.min(6, A.lines.length)).forEach(l => selected.add(l.number));
     renderChips(); renderChart(); renderTable(); renderInsights();
-    if ((A.notes || []).length) {
+    if ((A.notes || []).length && A.notes[0].body) {
+      $('notesFull').classList.remove('hidden');
+      $('notesList').innerHTML = A.notes.map(n => '<div class="note"><div class="h">' + esc(n.title) + '</div><p>' + esc(n.body) + '</p>' + (n.est_monthly_saving > 0 ? '<div class="save">Worth about ' + money(n.est_monthly_saving * 12) + ' a year</div>' : '') + '</div>').join('');
+    } else if ((A.notes || []).length) {
       $('notesTeaser').classList.remove('hidden');
       $('notesTitles').innerHTML = A.notes.map(n => '<div style="padding:6px 0;border-top:1px solid #F1F1F2;font-weight:600;color:#003660">' + esc(n.title) + '</div>').join('');
     }
@@ -113,6 +116,12 @@
   }
 
   function renderInsights() {
+    if (!A.teaser) {
+      $('insights').innerHTML = A.insights.map(i => '<div class="insight"><div class="k">' + esc(i.title) + '</div><div class="h">' + esc(i.headline) + '</div><div class="b">' + esc(i.body) + '</div>' +
+        (i.saving > 0 ? '<div class="save">Save up to ' + money(i.saving * 12) + ' a year</div>' : '') +
+        (i.items.length ? '<ul>' + i.items.map(it => '<li><span><b>' + esc(it.label) + '</b><br><span class="d">' + esc(it.detail || '') + '</span></span><span class="num" style="text-align:right">' + esc(it.value) + '</span></li>').join('') + '</ul>' : '') + '</div>').join('');
+      return;
+    }
     const fake = ['Line ending 0101 · $65.00/mth', 'Line ending 0102 · 18% of allowance', 'Line ending 0104 · $27.40/mth extras'];
     $('insights').innerHTML = A.insights.map(i =>
       '<div class="insight locked"><div class="k">' + esc(i.title) + '</div><div class="h">' + esc(i.headline) + '</div><div class="b">' + esc(i.body) + '</div>' +
@@ -120,5 +129,15 @@
       '<div class="lock"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#003660" stroke-width="2.2"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg><a href="/register?next=/dashboard">Unlock the detail and savings</a></div></div>').join('');
   }
 
-  poll();
+  const form = $('emailForm');
+  if (form) form.onsubmit = async (e) => {
+    e.preventDefault();
+    const btn = form.querySelector('button'); btn.disabled = true;
+    const r = await fetch('/api/email-summary', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: $('summaryEmail').value }) });
+    const j = await r.json().catch(() => ({}));
+    $('emailMsg').innerHTML = r.ok ? '<span style="color:#00875A;font-weight:600">Sent - check your inbox. Click the link in the email to save your analysis.</span>' : '<span style="color:#B5470A">' + esc(j.error || 'Something went wrong.') + '</span>';
+    btn.disabled = false;
+  };
+
+  if (SO_EXAMPLE) loadAnalysis([]); else poll();
 })();

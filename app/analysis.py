@@ -267,7 +267,9 @@ def _insights(lines, devices, months, total_month):
     groups = {}
     for p in lines:
         if p["plan_cost"] and p["allowance"] is not None:
-            groups.setdefault((p["carrier"], p["allowance"]), []).append(p)
+            # Data-only plans (tablets, routers) aren't comparable with voice plans
+            data_only = bool(re.search(r"\bdata\b", (p["plan"] or "").lower()))
+            groups.setdefault((p["carrier"], p["allowance"], data_only), []).append(p)
     def family(name):
         n = re.sub(r"\(.*?\)|\bteam\b|\bplan leader\b|\bleader\b|[-–]", " ", (name or "").lower())
         return re.sub(r"\s+", " ", n).strip()
@@ -314,23 +316,29 @@ def _insights(lines, devices, months, total_month):
     return out
 
 
+REAL = "IFNULL(owner_email, '') <> 'example@secondopinion.co.nz'"  # leave the public example out of stats
+
+
 def admin_stats():
     s = {}
     s["users"] = db.q1("SELECT COUNT(*) n FROM users WHERE verified_at IS NOT NULL")["n"]
-    s["emails_known"] = db.q1("SELECT COUNT(DISTINCT owner_email) n FROM invoices WHERE owner_email IS NOT NULL")["n"]
-    s["invoices"] = db.q1("SELECT COUNT(*) n FROM invoices")["n"]
-    s["by_status"] = db.q("SELECT status, COUNT(*) n FROM invoices GROUP BY status ORDER BY n DESC")
+    s["emails_known"] = db.q1("SELECT COUNT(DISTINCT owner_email) n FROM invoices WHERE owner_email IS NOT NULL"
+                              " AND " + REAL)["n"]
+    s["invoices"] = db.q1("SELECT COUNT(*) n FROM invoices WHERE " + REAL)["n"]
+    s["by_status"] = db.q("SELECT status, COUNT(*) n FROM invoices WHERE " + REAL + " GROUP BY status ORDER BY n DESC")
     s["by_carrier"] = db.q("SELECT COALESCE(carrier,'unknown') carrier, COUNT(*) n,"
                            " ROUND(AVG(recon_ok)*100) recon_pct, ROUND(AVG(duration_s)) secs"
-                           " FROM invoices WHERE status IN ('done','duplicate') GROUP BY carrier")
+                           " FROM invoices WHERE status IN ('done','duplicate') AND " + REAL + " GROUP BY carrier")
     s["by_source"] = db.q("SELECT s.source, COUNT(i.id) n FROM invoices i JOIN submissions s ON s.id=i.submission_id"
                           " GROUP BY s.source")
     s["ai_cost"] = db.q1("SELECT ROUND(COALESCE(SUM(cost_usd),0),2) usd, COUNT(*) calls FROM ai_usage")
     s["ai_by_purpose"] = db.q("SELECT purpose, provider, COUNT(*) calls, ROUND(SUM(cost_usd),2) usd FROM ai_usage"
                               " GROUP BY purpose, provider")
     s["offer_requests"] = db.q1("SELECT COUNT(*) n FROM offer_requests")["n"]
-    s["lines_tracked"] = db.q1("SELECT COUNT(DISTINCT number) n FROM lines")["n"]
-    s["spend_tracked"] = db.q1("SELECT ROUND(COALESCE(SUM(total_excl_gst),0)) v FROM invoices WHERE status='done'")["v"]
+    s["lines_tracked"] = db.q1("SELECT COUNT(DISTINCT number) n FROM lines WHERE invoice_id IN"
+                               " (SELECT id FROM invoices WHERE " + REAL + ")")["n"]
+    s["spend_tracked"] = db.q1("SELECT ROUND(COALESCE(SUM(total_excl_gst),0)) v FROM invoices WHERE status='done'"
+                               " AND " + REAL)["v"]
     s["daily"] = db.q(
         "SELECT date(created_at,'unixepoch','localtime') d,"
         " SUM(kind='upload') uploads, SUM(kind='email_received') emails, SUM(kind='registered') registrations,"
@@ -339,7 +347,11 @@ def admin_stats():
     funnel = db.q1(
         "SELECT"
         " (SELECT COUNT(DISTINCT COALESCE(email, session_id)) FROM events WHERE kind IN ('upload','email_received')) submitters,"
+        " (SELECT COUNT(DISTINCT session_id) FROM events WHERE kind='page_view' AND meta LIKE '%\"js\": 1%') visitors,"
+        " (SELECT COUNT(DISTINCT session_id) FROM events WHERE kind='upload_intent') upload_intent,"
+        " (SELECT COUNT(*) FROM events WHERE kind='example_viewed') example_views,"
         " (SELECT COUNT(*) FROM events WHERE kind='results_viewed') results_views,"
+        " (SELECT COUNT(*) FROM events WHERE kind='email_captured') emails_captured,"
         " (SELECT COUNT(*) FROM events WHERE kind='registered') registered,"
         " (SELECT COUNT(DISTINCT email) FROM events WHERE kind='dashboard_viewed') dashboard_users,"
         " (SELECT COUNT(DISTINCT email) FROM events WHERE kind='chat') chat_users,"

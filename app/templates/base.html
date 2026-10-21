@@ -34,6 +34,13 @@
   <div>Email bills to <a href="mailto:{{ mail_address }}">{{ mail_address }}</a> &middot; <a href="/privacy">Privacy</a></div>
 </div></footer>
 {% endblock %}
+<script>
+window.soTrack = function (kind) {
+  try { fetch('/api/pv', { method: 'POST', keepalive: true, headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ kind: kind || 'page_view', path: location.pathname, ref: document.referrer }) }); } catch (e) {}
+};
+window.addEventListener('load', function () { soTrack(); });
+</script>
 {% block scripts %}{% endblock %}
 </body>
 </html>

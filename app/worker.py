@@ -4,7 +4,7 @@ import threading
 import time
 import traceback
 
-from . import catalogue, db, extract, mailer, notify
+from . import catalogue, db, example, extract, mailer, notify
 
 POLL_SECONDS = 60
 
@@ -74,6 +74,7 @@ def main():
     # Bills left mid-processing by a restart go back on the queue
     db.x("UPDATE invoices SET status='queued' WHERE status='processing'")
     db.x("UPDATE invoices SET learning_state='done' WHERE learning_state='running'")
+    example.seed()
     if db.get_setting("catalogue_requested") == "running":
         db.set_setting("catalogue_requested", "1")
     threading.Thread(target=mail_loop, daemon=True).start()
