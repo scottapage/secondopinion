@@ -627,7 +627,7 @@ def setup_inspect(token: str = "", invoice_id: int = 0, pdf: int = 0):
     if not invoice_id:
         return db.q("SELECT i.id, s.source, s.notified_at, s.notify_error, owner_email, filename, status, error, carrier,"
                     " account_name, period_month, total_excl_gst,"
-                    " line_count, recon_ok, recon_diff, pages, has_text, provider, model, duration_s, created_at"
+                    " line_count, recon_ok, recon_diff, pages, has_text, provider, model, duration_s, i.created_at"
                     " FROM invoices i LEFT JOIN submissions s ON s.id=i.submission_id ORDER BY i.id DESC LIMIT 30")
     inv = db.q1("SELECT * FROM invoices WHERE id=?", (invoice_id,))
     if not inv:
