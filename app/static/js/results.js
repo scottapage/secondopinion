@@ -16,7 +16,7 @@
 
   async function poll() {
     const r = await fetch('/api/submission/' + SO_TOKEN);
-    if (!r.ok) return;
+    if (!r.ok) { setTimeout(poll, 4000); return; }
     const j = await r.json();
     $('progress').innerHTML = j.invoices.map(progressRow).join('');
     const n = j.invoices.length, done = j.invoices.filter(i => !['queued', 'processing'].includes(i.status)).length;
@@ -42,7 +42,7 @@
     $('subline').textContent = 'Based on ' + k.bills + ' bill' + (k.bills === 1 ? '' : 's') + ' (' + A.month_labels[0] + (A.months.length > 1 ? ' to ' + A.month_labels[A.month_labels.length - 1] : '') + ') · ' + accts;
     const delta = k.monthly_prev ? (k.monthly - k.monthly_prev) : null;
     $('kpis').innerHTML = [
-      ['Monthly spend', money(k.monthly), delta == null ? 'excl GST' : (Math.abs(delta) < 1 ? '<span>No change</span>' : '<span class="' + (delta > 0 ? 'delta-up' : 'delta-down') + '">' + (delta > 0 ? '+' : '') + money(delta) + '</span>') vs last month', true],
+      ['Monthly spend', money(k.monthly), delta == null ? 'excl GST' : (Math.abs(delta) < 1 ? '<span>No change</span>' : '<span class="' + (delta > 0 ? 'delta-up' : 'delta-down') + '">' + (delta > 0 ? '+' : '') + money(delta) + '</span>') + ' vs last month', true],
       ['Mobile lines', k.lines, 'on your latest bill'],
       ['Average per line', money(k.per_line), 'per month'],
       ['Yearly run-rate', money(k.annual), 'at current spend'],

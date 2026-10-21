@@ -28,7 +28,7 @@
     $('subline').textContent = k.bills + ' bill' + (k.bills === 1 ? '' : 's') + ' analysed · ' + A.month_labels[0] + (A.months.length > 1 ? ' to ' + A.month_labels[A.month_labels.length - 1] : '') + ' · all amounts excl GST';
     const delta = k.monthly_prev != null ? k.monthly - k.monthly_prev : null;
     $('kpis').innerHTML = [
-      ['Latest monthly spend', money(k.monthly), delta == null ? 'Add another month to see the trend' : (Math.abs(delta) < 1 ? '<span>No change</span>' : '<span class="' + (delta > 0 ? 'delta-up' : 'delta-down') + '">' + (delta > 0 ? '+' : '') + money(delta) + '</span>') vs previous month', true],
+      ['Latest monthly spend', money(k.monthly), delta == null ? 'Add another month to see the trend' : (Math.abs(delta) < 1 ? '<span>No change</span>' : '<span class="' + (delta > 0 ? 'delta-up' : 'delta-down') + '">' + (delta > 0 ? '+' : '') + money(delta) + '</span>') + ' vs previous month', true],
       ['Average per line', money(k.per_line, 2), k.lines + ' active lines'],
       ['Yearly run-rate', money(k.annual), 'at current spend'],
       ['Potential savings', money(k.savings_year), 'per year, from ' + A.insights.filter(i => i.saving > 0).length + ' findings'],
