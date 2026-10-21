@@ -69,10 +69,14 @@ def build(email=None, session_id=None, account=None):
         m = inv_month.get(c["invoice_id"])
         if m:
             cat_month[c["category"]][m] += c["amount"] or 0
+    # Headline figures are mobile only; broadband and other services on the same bill are reported separately
+    non_mobile = cat_month.pop("non_mobile", {})
     total_month = defaultdict(float)
     for i in done:
         if i["period_month"]:
             total_month[i["period_month"]] += i["total_excl_gst"] or 0
+    for m, v in non_mobile.items():
+        total_month[m] -= v
 
     # Per-line matrix (a "line" is a phone number; it may appear on several bills)
     per = {}
@@ -143,6 +147,7 @@ def build(email=None, session_id=None, account=None):
             "savings_month": savings_month,
             "savings_year": savings_month * 12,
             "bills": len(done),
+            "other_services": round(non_mobile.get(latest, 0), 2) if latest else 0,
         },
         "total_month": [round(total_month.get(m, 0), 2) for m in months],
         "category_month": {cat: [round(v.get(m, 0), 2) for m in months] for cat, v in cat_month.items()},
@@ -196,15 +201,18 @@ def _insights(lines, devices, months, total_month):
     out = []
     n_months = max(len(months), 1)
 
+    has_usage = any(p["avg_data"] is not None for p in lines)
     idle = [p for p in lines if (p["avg_data"] is not None and p["avg_data"] < 200)
             and (p["avg_voice"] is None or p["avg_voice"] < 10) and p["avg"] > 0]
     for p in idle:
         p["flags"].append("idle")
     out.append({
         "key": "idle", "title": "Idle lines",
-        "headline": f"{len(idle)} line{'s' if len(idle) != 1 else ''} barely used" if idle else "No idle lines found",
+        "headline": f"{len(idle)} line{'s' if len(idle) != 1 else ''} barely used" if idle else
+        ("No idle lines found" if has_usage else "Usage isn't shown on these bills"),
         "body": "Numbers you're paying for that used almost no data or calls. Cancel, or move them to a cheaper"
-                " standby plan.",
+                " standby plan." if has_usage else "Your carrier doesn't print data or call usage on this bill, so we"
+                " can't spot idle lines from it. A usage report from your carrier's business portal would show them.",
         "saving": round(sum(p["avg"] for p in idle), 2),
         "items": [{"label": p["label"], "number": p["display"], "value": fmt_money(p["avg"], 2) + "/mth",
                    "detail": f"{fmt_data(p['avg_data'])} data avg"} for p in idle],
@@ -227,10 +235,36 @@ def _insights(lines, devices, months, total_month):
     out.append({
         "key": "plan_fit", "title": "Plan fit",
         "headline": f"{len(over) + len(under)} line{'s' if len(over) + len(under) != 1 else ''} on the wrong-size plan"
-        if (over or under) else "Plans look well matched",
+        if (over or under) else ("Plans look well matched" if has_usage else "No usage data to check plan size"),
         "body": "Lines using a fraction of their allowance, or regularly paying for extra data and out-of-plan usage.",
         "saving": round(fit_saving, 2),
         "items": items,
+    })
+
+    # Same kind of plan (e.g. unlimited) at different prices on the same carrier
+    groups = {}
+    for p in lines:
+        if p["plan_cost"] and p["allowance"] is not None:
+            groups.setdefault((p["carrier"], p["allowance"]), []).append(p)
+    pricier = []
+    for ps in groups.values():
+        cheapest = min(ps, key=lambda p: p["plan_cost"])
+        for p in ps:
+            if p["plan_cost"] - cheapest["plan_cost"] >= 5:
+                pricier.append((p, cheapest))
+    for p, _ in pricier:
+        p["flags"].append("pricier plan")
+    out.append({
+        "key": "plan_mix", "title": "Plan pricing",
+        "headline": f"{len(pricier)} line{'s' if len(pricier) != 1 else ''} paying more for the same allowance"
+        if pricier else "Lines with the same allowance pay the same",
+        "body": "Lines with the same data allowance on different-priced plans. Moving them onto the cheaper plan,"
+                " or a pooled team plan, usually costs nothing extra in usage.",
+        "saving": round(sum(p["plan_cost"] - c["plan_cost"] for p, c in pricier), 2),
+        "items": [{"label": p["label"], "number": p["display"],
+                   "value": fmt_money(p["plan_cost"] - c["plan_cost"], 2) + "/mth more",
+                   "detail": f"{p['plan']} {fmt_money(p['plan_cost'], 2)} vs {c['plan']} {fmt_money(c['plan_cost'], 2)}"}
+                  for p, c in pricier],
     })
 
     leak_lines = [p for p in lines if p["roaming"] + p["usage"] + p["addon"] > 0]

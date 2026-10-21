@@ -18,7 +18,7 @@ import pdfplumber
 
 from . import ai, db
 
-CATEGORIES = ["plan", "addon", "usage", "roaming", "hardware", "one_off", "discount", "account", "other"]
+CATEGORIES = ["plan", "addon", "usage", "roaming", "hardware", "one_off", "discount", "account", "non_mobile", "other"]
 
 NUM = {"type": ["number", "null"]}
 STR = {"type": "string"}  # empty string when not shown (union types are limited)
@@ -126,7 +126,9 @@ Rules:
 - Charge categories: plan (recurring plan/access fee), addon (recurring bolt-ons, extra data packs, insurance),
   usage (pay-as-you-go calls/texts/data/premium/international calls from NZ), roaming (any usage or day passes overseas),
   hardware (device/handset repayments), one_off (connection, SIM, admin fees), discount, account (account-level fees),
-  other.
+  non_mobile (anything that is not a mobile service but is on the same bill - broadband, fibre, wireless broadband,
+  landlines, phone systems - INCLUDING discounts and credits tied to those services, as negative amounts), other.
+  Put non_mobile charges in account_charges.
 - data in MB (1 GB = 1024 MB). data_allowance_mb = -1 for unlimited, null if not stated.
 - voice_minutes: total call minutes used on the line. sms_count: texts sent.
 - devices: any handset/hardware repayment plans, with remaining payments/balance where printed.

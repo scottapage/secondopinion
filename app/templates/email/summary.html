@@ -16,7 +16,7 @@
         <div style="font-size:22px;font-weight:800;color:#003660;padding-top:2px;">{{ value }}</div></div></td>
       {% endfor %}
     </tr></table>
-    <div style="font-size:11px;color:#8E9699;padding:2px 8px 0 8px;">All amounts exclude GST. Based on {{ a.kpi.bills }} bill{{ 's' if a.kpi.bills != 1 }} from {{ a.month_labels[0] }}{% if a.month_labels|length > 1 %} to {{ a.month_labels[-1] }}{% endif %}.</div>
+    <div style="font-size:11px;color:#8E9699;padding:2px 8px 0 8px;">Mobile services only{% if a.kpi.other_services %} (plus {{ a.kpi.other_services|money }}/month of broadband and other services on the same bill){% endif %}. All amounts exclude GST. Based on {{ a.kpi.bills }} bill{{ 's' if a.kpi.bills != 1 }} from {{ a.month_labels[0] }}{% if a.month_labels|length > 1 %} to {{ a.month_labels[-1] }}{% endif %}.</div>
   </td></tr>
   {% if spend_chart %}<tr><td style="padding:22px 32px 0 32px;">
     <div style="font-size:17px;font-weight:800;color:#1D292E;">Where the money goes</div>

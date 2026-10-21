@@ -39,7 +39,7 @@
     const k = A.kpi;
     $('headline').textContent = 'You spend ' + money(k.monthly) + ' a month on ' + k.lines + ' mobile line' + (k.lines === 1 ? '' : 's') + '.';
     const accts = A.accounts.map(a => a.carrier + ' ' + (a.number || '')).join(', ');
-    $('subline').textContent = 'Based on ' + k.bills + ' bill' + (k.bills === 1 ? '' : 's') + ' (' + A.month_labels[0] + (A.months.length > 1 ? ' to ' + A.month_labels[A.month_labels.length - 1] : '') + ') · ' + accts;
+    $('subline').textContent = 'Based on ' + k.bills + ' bill' + (k.bills === 1 ? '' : 's') + ' (' + A.month_labels[0] + (A.months.length > 1 ? ' to ' + A.month_labels[A.month_labels.length - 1] : '') + ') · ' + accts + (k.other_services ? ' · excludes ' + money(k.other_services) + '/month of broadband and other services on the same bill' : '');
     const delta = k.monthly_prev ? (k.monthly - k.monthly_prev) : null;
     $('kpis').innerHTML = [
       ['Monthly spend', money(k.monthly), delta == null ? 'excl GST' : (Math.abs(delta) < 1 ? '<span>No change</span>' : '<span class="' + (delta > 0 ? 'delta-up' : 'delta-down') + '">' + (delta > 0 ? '+' : '') + money(delta) + '</span>') + ' vs last month', true],

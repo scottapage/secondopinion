@@ -625,9 +625,10 @@ def setup_inspect(token: str = "", invoice_id: int = 0, pdf: int = 0):
     if not SETUP_TOKEN or token != SETUP_TOKEN:
         raise HTTPException(404)
     if not invoice_id:
-        return db.q("SELECT id, owner_email, filename, status, error, carrier, account_name, period_month, total_excl_gst,"
+        return db.q("SELECT i.id, s.source, s.notified_at, s.notify_error, owner_email, filename, status, error, carrier,"
+                    " account_name, period_month, total_excl_gst,"
                     " line_count, recon_ok, recon_diff, pages, has_text, provider, model, duration_s, created_at"
-                    " FROM invoices ORDER BY id DESC LIMIT 30")
+                    " FROM invoices i LEFT JOIN submissions s ON s.id=i.submission_id ORDER BY i.id DESC LIMIT 30")
     inv = db.q1("SELECT * FROM invoices WHERE id=?", (invoice_id,))
     if not inv:
         raise HTTPException(404)
@@ -638,3 +639,15 @@ def setup_inspect(token: str = "", invoice_id: int = 0, pdf: int = 0):
     inv["pdf_text"] = text
     inv["usage"] = db.q("SELECT * FROM ai_usage WHERE invoice_id=?", (invoice_id,))
     return inv
+
+
+@app.post("/setup/reprocess")
+def setup_reprocess(token: str = Form(...), ids: str = Form(...), forget_value: str = Form("")):
+    """Re-queue bills for extraction; optionally drop learned facts with a given meaning (e.g. a retired category)."""
+    if not SETUP_TOKEN or token != SETUP_TOKEN:
+        raise HTTPException(404)
+    if forget_value:
+        db.x("DELETE FROM knowledge WHERE value=?", (forget_value,))
+    for i in [int(x) for x in ids.split(",") if x.strip().isdigit()]:
+        db.x("UPDATE invoices SET status='queued', error=NULL WHERE id=?", (i,))
+    return {"ok": True}

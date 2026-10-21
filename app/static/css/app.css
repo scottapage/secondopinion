@@ -146,6 +146,7 @@ table.data .r { text-align: right; }
 .flag { display: inline-block; padding: 2px 9px; border-radius: 999px; font-size: 12px; font-weight: 600; margin-right: 4px; }
 .flag.idle { background: var(--orange-l); color: #B5470A; }
 .flag.oversized { background: var(--blue-l); color: var(--blue-d); }
+.flag.pricier { background: #FFF4D6; color: #8A6100; }
 .flag.undersized { background: #FFF4D6; color: #8A6100; }
 .status { display: inline-block; padding: 3px 10px; border-radius: 999px; font-size: 12px; font-weight: 700; }
 .status.done { background: #E3F4EC; color: var(--green); }
@@ -160,7 +161,7 @@ table.data .r { text-align: right; }
 .util.over > span { background: var(--orange); }
 
 /* Insights */
-.insights { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
+.insights { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; }
 .insight { border-radius: var(--radius); background: #fff; border: 1px solid var(--line); padding: 22px; position: relative; overflow: hidden; display: flex; flex-direction: column; }
 .insight .k { font-size: 12px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-3); }
 .insight .h { font-size: 19px; font-weight: 800; color: var(--navy); margin-top: 6px; letter-spacing: -0.02em; line-height: 1.25; }

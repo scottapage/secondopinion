@@ -25,7 +25,7 @@
   function renderHeader() {
     const k = A.kpi;
     $('headline').textContent = money(k.monthly) + ' a month across ' + k.lines + ' line' + (k.lines === 1 ? '' : 's');
-    $('subline').textContent = k.bills + ' bill' + (k.bills === 1 ? '' : 's') + ' analysed · ' + A.month_labels[0] + (A.months.length > 1 ? ' to ' + A.month_labels[A.month_labels.length - 1] : '') + ' · all amounts excl GST';
+    $('subline').textContent = k.bills + ' bill' + (k.bills === 1 ? '' : 's') + ' analysed · ' + A.month_labels[0] + (A.months.length > 1 ? ' to ' + A.month_labels[A.month_labels.length - 1] : '') + ' · mobile only, excl GST' + (k.other_services ? ' (plus ' + money(k.other_services) + '/month broadband & other services)' : '');
     const delta = k.monthly_prev != null ? k.monthly - k.monthly_prev : null;
     $('kpis').innerHTML = [
       ['Latest monthly spend', money(k.monthly), delta == null ? 'Add another month to see the trend' : (Math.abs(delta) < 1 ? '<span>No change</span>' : '<span class="' + (delta > 0 ? 'delta-up' : 'delta-down') + '">' + (delta > 0 ? '+' : '') + money(delta) + '</span>') + ' vs previous month', true],
@@ -125,7 +125,7 @@
         '<td class="r num"><b>' + money(l.avg, 2) + '</b></td><td>' + sparkline(l.spend) + '</td>' +
         '<td class="r num">' + (l.avg_data_gb == null ? '-' : l.avg_data_gb + ' GB') + (l.allowance_gb ? '<span class="tiny">of ' + (l.allowance_gb === -1 ? 'unlimited' : l.allowance_gb + ' GB') + '</span>' : '') + '</td>' +
         '<td class="r num">' + (l.extras > 0.005 ? money(l.extras, 2) : '-') + '</td>' +
-        '<td>' + l.flags.map(f => '<span class="flag ' + f + '">' + f + '</span>').join('') + '</td></tr>').join('');
+        '<td>' + l.flags.map(f => '<span class="flag ' + f.split(' ')[0] + '">' + f + '</span>').join('') + '</td></tr>').join('');
     $('lineTable').querySelectorAll('th.sort').forEach(th => th.onclick = () => { const k = th.dataset.k; sortDir = sortKey === k ? -sortDir : -1; sortKey = k; renderLineTable(); });
     $('lineTable').querySelectorAll('tr.click').forEach(tr => tr.onclick = () => openLine(A.lines.find(l => l.number === tr.dataset.n)));
   }
@@ -135,7 +135,7 @@
     const n = Math.max(A.months.length, 1);
     $('drawerBody').innerHTML = '<div class="eyebrow" style="margin-bottom:6px">' + esc(l.carrier) + ' · ' + esc(l.display) + '</div><h2>' + esc(l.label) + '</h2><p class="muted">' + esc(l.plan || 'Plan not shown') + '</p>' +
       '<div class="mini-kpis"><div><b>' + money(l.avg, 2) + '</b><span>avg per month</span></div><div><b>' + (l.avg_data_gb == null ? '-' : l.avg_data_gb + ' GB') + '</b><span>data per month</span></div><div><b>' + money((l.roaming + l.usage + l.addon) / n, 2) + '</b><span>extras per month</span></div></div>' +
-      (l.flags.length ? '<p>' + l.flags.map(f => '<span class="flag ' + f + '">' + f + '</span>').join('') + '</p>' : '') +
+      (l.flags.length ? '<p>' + l.flags.map(f => '<span class="flag ' + f.split(' ')[0] + '">' + f + '</span>').join('') + '</p>' : '') +
       '<h3 style="margin-top:18px">Cost by month</h3><div id="dSpend" class="chart short"></div><h3 style="margin-top:10px">Data by month</h3><div id="dData" class="chart short"></div>';
     $('drawer').classList.remove('hidden'); $('drawerBg').classList.remove('hidden');
     make('dSpend', { tooltip: Object.assign({}, SO.base.tooltip, { trigger: 'axis', valueFormatter: v => money(v, 2) }), xAxis: axisX(A.month_labels), yAxis: axisY(), series: [{ type: 'bar', data: l.spend, itemStyle: { color: C.navy, borderRadius: [4, 4, 0, 0] }, barMaxWidth: 34 }] });
