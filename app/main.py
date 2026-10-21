@@ -14,7 +14,7 @@ from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.sessions import SessionMiddleware
 
-from . import analysis, chat, db, extract, ingest, mailer, notify, security
+from . import analysis, catalogue, chat, db, extract, ingest, learning, mailer, notify, security
 from .config import CHART_DIR, DATA_DIR, MAX_UPLOAD_MB, SECRET_KEY, SECRET_SETTINGS, SETUP_TOKEN, SUPERADMIN_EMAIL
 from .tpl import render
 
@@ -191,8 +191,13 @@ def api_analysis(request: Request, as_email: str = None, account: str = None):
     if as_email and is_admin(request):
         email = as_email.lower()
     if email:
-        return JSONResponse(_clean(analysis.build(email=email, account=account or None)))
-    return JSONResponse(_clean(_teaser(analysis.build(session_id=request.session.get("sid")))))
+        a = analysis.build(email=email, account=account or None)
+        a["notes"] = learning.notes_for(email)
+        return JSONResponse(_clean(a))
+    sess = request.session.get("sid")
+    a = analysis.build(session_id=sess)
+    a["notes"] = [{"title": n["title"]} for n in learning.notes_for(session_id=sess)]
+    return JSONResponse(_clean(_teaser(a)))
 
 
 @app.get("/c/{name}")
@@ -552,6 +557,7 @@ def admin_offers_save(request: Request, id: str = Form(""), title: str = Form(..
 @app.get("/admin/knowledge", response_class=HTMLResponse)
 def admin_knowledge(request: Request, carrier: str = ""):
     require_admin(request)
+    return RedirectResponse("/admin/learning", 303)
     rows = db.q("SELECT * FROM knowledge WHERE (?='' OR carrier=?) ORDER BY carrier, kind, seen_count DESC",
                 (carrier, carrier))
     return page(request, "admin/knowledge.html", rows=rows, carrier=carrier, tab="knowledge")
@@ -566,7 +572,7 @@ def admin_knowledge_edit(request: Request, kid: int, action: str = Form(...), va
         db.x("UPDATE knowledge SET approved=1-approved WHERE id=?", (kid,))
     elif action == "save":
         db.x("UPDATE knowledge SET value=? WHERE id=?", (value[:300], kid))
-    return RedirectResponse("/admin/knowledge", 303)
+    return RedirectResponse("/admin/learning", 303)
 
 
 @app.post("/admin/knowledge")
@@ -575,7 +581,7 @@ def admin_knowledge_add(request: Request, carrier: str = Form(...), kind: str = 
     require_admin(request)
     db.x("INSERT OR REPLACE INTO knowledge(carrier, kind, key, value, approved, updated_at) VALUES (?,?,?,?,1,?)",
          (carrier, kind, key[:160], value[:300], time.time()))
-    return RedirectResponse("/admin/knowledge", 303)
+    return RedirectResponse("/admin/learning", 303)
 
 
 EDITABLE = ["sales_email", "booking_url", "ai_provider", "claude_model", "chat_model", "local_ai_url",
@@ -724,3 +730,116 @@ def setup_stats(token: str = "", hours: float = 24):
     if not SETUP_TOKEN or token != SETUP_TOKEN:
         raise HTTPException(404)
     return activity(hours)
+
+
+# ---------- learning & plan catalogue (superadmin) ----------
+
+@app.get("/admin/learning", response_class=HTMLResponse)
+def admin_learning(request: Request):
+    require_admin(request)
+    guides = db.q("SELECT * FROM format_guides ORDER BY carrier")
+    audits = db.q("SELECT a.*, i.filename, i.carrier, i.account_name FROM audits a JOIN invoices i ON i.id=a.invoice_id"
+                  " ORDER BY a.id DESC LIMIT 30")
+    for a in audits:
+        a["detail"] = json.loads(a["corrections"] or "{}")
+    stats = db.q("SELECT i.carrier, COUNT(*) n, SUM(a.verdict='correct') correct, SUM(a.verdict='corrected') corrected,"
+                 " SUM(a.applied) applied FROM audits a JOIN invoices i ON i.id=a.invoice_id GROUP BY i.carrier")
+    parsers = db.q("SELECT * FROM parsers ORDER BY id DESC")
+    for p in parsers:
+        p["result"] = json.loads(p["last_result"] or "{}")
+    suggestions = db.q("SELECT * FROM suggestions ORDER BY status='pending' DESC, id DESC LIMIT 60")
+    knowledge = db.q("SELECT * FROM knowledge ORDER BY carrier, kind, seen_count DESC")
+    return page(request, "admin/learning.html", tab="knowledge", guides=guides, audits=audits, stats=stats,
+                parsers=parsers, suggestions=suggestions, rows=knowledge,
+                learning_mode=db.get_setting("learning_mode"), min_bills=db.get_setting("parser_min_bills"),
+                streak_needed=int(db.get_setting("parser_activate_streak") or 10))
+
+
+@app.post("/admin/learning/guide")
+def admin_guide_save(request: Request, carrier: str = Form(...), guide: str = Form(...)):
+    require_admin(request)
+    cur = db.q1("SELECT version FROM format_guides WHERE carrier=?", (carrier,))
+    v = (cur["version"] + 1) if cur else 1
+    db.x("INSERT INTO format_guides(carrier, guide, bills_seen, version, updated_at) VALUES (?,?,0,?,?)"
+         " ON CONFLICT(carrier) DO UPDATE SET guide=excluded.guide, version=excluded.version,"
+         " updated_at=excluded.updated_at", (carrier, guide, v, time.time()))
+    db.x("INSERT INTO guide_history(carrier, version, guide, created_at) VALUES (?,?,?,?)",
+         (carrier, v, guide, time.time()))
+    return RedirectResponse("/admin/learning#guides", 303)
+
+
+@app.post("/admin/learning/suggestion/{sug_id}")
+def admin_suggestion(request: Request, sug_id: int, status: str = Form(...)):
+    require_admin(request)
+    db.x("UPDATE suggestions SET status=? WHERE id=?",
+         (status if status in ("approved", "rejected", "pending") else "pending", sug_id))
+    return RedirectResponse("/admin/learning#suggestions", 303)
+
+
+@app.post("/admin/learning/parser/{pid}")
+def admin_parser(request: Request, pid: int, action: str = Form(...)):
+    require_admin(request)
+    p = db.q1("SELECT * FROM parsers WHERE id=?", (pid,))
+    if action == "activate" and p:
+        db.x("UPDATE parsers SET status='retired' WHERE carrier=? AND status='active'", (p["carrier"],))
+        db.x("UPDATE parsers SET status='active' WHERE id=?", (pid,))
+    elif action == "retire":
+        db.x("UPDATE parsers SET status='retired' WHERE id=?", (pid,))
+    elif action == "backtest":
+        background(learning.backtest, pid)
+    return RedirectResponse("/admin/learning#parsers", 303)
+
+
+@app.post("/admin/learning/mode")
+def admin_learning_mode(request: Request, mode: str = Form(...)):
+    require_admin(request)
+    db.set_setting("learning_mode", "on" if mode == "on" else "off")
+    return RedirectResponse("/admin/learning", 303)
+
+
+@app.get("/admin/catalogue", response_class=HTMLResponse)
+def admin_catalogue(request: Request):
+    require_admin(request)
+    rows = db.q("SELECT * FROM plan_catalogue WHERE active=1 ORDER BY provider, category, price_excl_gst")
+    notes = {}
+    for prov in catalogue.SITES:
+        for cat in ("mobile", "broadband"):
+            raw = db.get_setting(f"catalogue_note:{prov}:{cat}")
+            notes[f"{prov}:{cat}"] = json.loads(raw) if raw else None
+    return page(request, "admin/catalogue.html", tab="catalogue", rows=rows, notes=notes,
+                state=db.get_setting("catalogue_requested"), last_result=db.get_setting("catalogue_last_result"),
+                days=db.get_setting("catalogue_days"))
+
+
+@app.post("/admin/catalogue/refresh")
+def admin_catalogue_refresh(request: Request):
+    require_admin(request)
+    db.set_setting("catalogue_requested", "1")
+    return RedirectResponse("/admin/catalogue", 303)
+
+
+@app.post("/setup/catalogue")
+def setup_catalogue(token: str = Form(...)):
+    if not SETUP_TOKEN or token != SETUP_TOKEN:
+        raise HTTPException(404)
+    db.set_setting("catalogue_requested", "1")
+    return {"ok": True}
+
+
+@app.get("/setup/learning")
+def setup_learning(token: str = ""):
+    if not SETUP_TOKEN or token != SETUP_TOKEN:
+        raise HTTPException(404)
+    return {
+        "guides": db.q("SELECT carrier, version, bills_seen, updated_at, guide FROM format_guides"),
+        "audits": db.q("SELECT invoice_id, verdict, applied, corrections FROM audits ORDER BY id DESC LIMIT 20"),
+        "suggestions": db.q("SELECT * FROM suggestions ORDER BY id DESC LIMIT 20"),
+        "notes": db.q("SELECT * FROM customer_notes"),
+        "parsers": db.q("SELECT id, carrier, status, matches, mismatches, streak, last_result FROM parsers"),
+        "catalogue": db.q("SELECT provider, category, COUNT(*) n, MAX(fetched_at) at FROM plan_catalogue"
+                          " WHERE active=1 GROUP BY provider, category"),
+        "catalogue_last_result": db.get_setting("catalogue_last_result"),
+        "catalogue_state": db.get_setting("catalogue_requested"),
+        "ai_by_purpose": db.q("SELECT purpose, COUNT(*) calls, ROUND(SUM(cost_usd),2) usd FROM ai_usage"
+                              " GROUP BY purpose"),
+    }

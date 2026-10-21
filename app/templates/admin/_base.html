@@ -3,8 +3,8 @@
 {% block body %}
 <div class="wrap">
   <nav class="admin-tabs">
-    {% for k, label in [('home','Overview'),('invoices','Bills'),('users','Users'),('requests','Offer requests'),('offers','Offers'),('knowledge','Learning'),('settings','Settings')] %}
-    <a href="/admin{{ '' if k == 'home' else '/' ~ k }}" class="{{ 'on' if tab == k }}">{{ label }}</a>
+    {% for k, label in [('home','Overview'),('invoices','Bills'),('users','Users'),('requests','Offer requests'),('offers','Offers'),('learning','Learning'),('catalogue','Plan catalogue'),('settings','Settings')] %}
+    <a href="/admin{{ '' if k == 'home' else '/' ~ k }}" class="{{ 'on' if tab == k or (k == 'learning' and tab == 'knowledge') }}">{{ label }}</a>
     {% endfor %}
   </nav>
   {% block admin %}{% endblock %}

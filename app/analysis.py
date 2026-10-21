@@ -1,4 +1,5 @@
 """Turns stored billing rows into the views, charts and insights shown to users."""
+import re
 from collections import defaultdict
 
 from . import db
@@ -57,6 +58,7 @@ def build(email=None, session_id=None, account=None):
     ph = ",".join("?" * len(ids))
     lines = db.q(f"SELECT * FROM lines WHERE invoice_id IN ({ph})", ids)
     charges = db.q(f"SELECT * FROM charges WHERE invoice_id IN ({ph})", ids)
+    svc_rows = db.q(f"SELECT * FROM services WHERE invoice_id IN ({ph})", ids)
     devices = db.q(f"SELECT d.*, i.period_month FROM devices d JOIN invoices i ON i.id=d.invoice_id"
                    f" WHERE invoice_id IN ({ph})", ids)
 
@@ -154,6 +156,7 @@ def build(email=None, session_id=None, account=None):
         "lines": [_line_json(p, months) for p in line_list],
         "insights": insights,
         "devices": _devices(devices, latest),
+        "services": _services(svc_rows, months),
     }
 
 
@@ -177,6 +180,25 @@ def _line_json(p, months):
         "roaming": round(p["roaming"], 2), "usage": round(p["usage"], 2), "addon": round(p["addon"], 2),
         "hardware": round(p["hardware"], 2), "flags": p["flags"],
     }
+
+
+def _services(rows, months):
+    by = {}
+    for r in sorted(rows, key=lambda r: r["period_month"] or ""):
+        key = ((r["address"] or "").lower().strip(), r["service_type"])
+        s = by.setdefault(key, {"type": r["service_type"], "address": r["address"], "carrier": CARRIERS.get(
+            r["carrier"], r["carrier"]), "plan": None, "speed": None, "months": {}})
+        s["plan"] = r["plan_name"] or s["plan"]
+        s["speed"] = r["speed"] or s["speed"]
+        if r["period_month"]:
+            s["months"][r["period_month"]] = s["months"].get(r["period_month"], 0) + (r["amount"] or 0)
+    out = []
+    for s in by.values():
+        vals = list(s.pop("months").items())
+        s["spend"] = [round(dict(vals).get(m), 2) if m in dict(vals) else None for m in months]
+        s["avg"] = round(sum(v for _, v in vals) / max(len(vals), 1), 2)
+        out.append(s)
+    return sorted(out, key=lambda s: -s["avg"])
 
 
 def _devices(devices, latest):
@@ -246,11 +268,17 @@ def _insights(lines, devices, months, total_month):
     for p in lines:
         if p["plan_cost"] and p["allowance"] is not None:
             groups.setdefault((p["carrier"], p["allowance"]), []).append(p)
+    def family(name):
+        n = re.sub(r"\(.*?\)|\bteam\b|\bplan leader\b|\bleader\b|[-–]", " ", (name or "").lower())
+        return re.sub(r"\s+", " ", n).strip()
+
     pricier = []
     for ps in groups.values():
         cheapest = min(ps, key=lambda p: p["plan_cost"])
         for p in ps:
-            if p["plan_cost"] - cheapest["plan_cost"] >= 5:
+            # A team plan's lead line legitimately costs more than its team lines
+            leader_team = family(p["plan"]) == family(cheapest["plan"]) and "team" in (cheapest["plan"] or "").lower()
+            if p["plan_cost"] - cheapest["plan_cost"] >= 5 and not leader_team:
                 pricier.append((p, cheapest))
     for p, _ in pricier:
         p["flags"].append("pricier plan")

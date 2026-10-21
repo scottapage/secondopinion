@@ -30,6 +30,10 @@ SETTING_DEFAULTS = {
     "chat_model": "claude-opus-5-5",
     "local_ai_url": "",  # e.g. http://macbook.tailnet.ts.net:1234/v1
     "local_ai_model": "qwen3.8-27b-splash",
+    "learning_mode": "on",  # audit + format guide + analysis review on every bill
+    "catalogue_days": "14",  # how often the plan catalogue agent re-reads provider websites
+    "parser_min_bills": "10",  # audited bills needed before generating a deterministic parser
+    "parser_activate_streak": "10",  # consecutive shadow matches before a parser can be activated
 }
 
 SECRET_SETTINGS = {"anthropic_api_key", "mail_password"}

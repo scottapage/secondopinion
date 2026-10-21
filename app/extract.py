@@ -75,6 +75,21 @@ SCHEMA = {
             },
         },
         "account_charges": {"type": "array", "items": _charge_schema()},
+        "services": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "service_type": {"type": "string", "enum": ["broadband", "landline", "other"]},
+                    "address": {"type": "string"},
+                    "plan_name": {"type": "string"},
+                    "speed": {"type": "string"},
+                    "amount": {"type": "number"},
+                },
+                "required": ["service_type", "address", "plan_name", "speed", "amount"],
+                "additionalProperties": False,
+            },
+        },
         "devices": {
             "type": "array",
             "items": {
@@ -107,15 +122,16 @@ SCHEMA = {
     },
     "required": ["is_mobile_bill", "carrier", "rejection_reason", "account_name", "account_number", "customer_name",
                  "invoice_number", "invoice_date", "period_start", "period_end", "total_excl_gst", "gst",
-                 "total_incl_gst", "lines", "account_charges", "devices", "learned", "notes"],
+                 "total_incl_gst", "lines", "account_charges", "services", "devices", "learned", "notes"],
     "additionalProperties": False,
 }
 
-BASE_PROMPT = """You extract structured billing data from New Zealand business mobile phone invoices.
+BASE_PROMPT = """You extract structured billing data from New Zealand business telco invoices (mobile and broadband).
 Supported carriers: Spark ("spark"), One NZ - formerly Vodafone NZ ("one"), and 2degrees ("2degrees").
 
 Rules:
-- If the document is not a mobile/telco invoice, set is_mobile_bill=false and explain in rejection_reason.
+- is_mobile_bill is true for any telco invoice with mobile and/or broadband services. If the document is not a
+  telco invoice, set is_mobile_bill=false and explain in rejection_reason.
 - If it is a telco invoice from another provider, set carrier="other".
 - All money is NZD and EXCLUDING GST. If the bill only shows GST-inclusive amounts, divide by 1.15.
 - Discounts and credits are negative amounts with category "discount".
@@ -129,6 +145,9 @@ Rules:
   non_mobile (anything that is not a mobile service but is on the same bill - broadband, fibre, wireless broadband,
   landlines, phone systems - INCLUDING discounts and credits tied to those services, as negative amounts), other.
   Put non_mobile charges in account_charges.
+- services: one entry per non-mobile service (each broadband connection, landline...) with its address, plan name,
+  speed if stated (e.g. "Fibre 900", "Wireless"), and net monthly amount after the discounts tied to it. This
+  summarises the non_mobile account_charges; it does not replace them. Empty strings where not shown.
 - data in MB (1 GB = 1024 MB). data_allowance_mb = -1 for unlimited, null if not stated.
 - voice_minutes: total call minutes used on the line. sms_count: texts sent.
 - devices: any handset/hardware repayment plans, with remaining payments/balance where printed.
@@ -172,7 +191,8 @@ def knowledge_prompt(carrier):
         " ORDER BY seen_count DESC LIMIT 120",
         (carrier,),
     )
-    out = []
+    from . import learning
+    out = [learning._guide_block(carrier)]
     if rows:
         out.append(f"\nWhat we have learned from previous {carrier} bills (seen N times):")
         for r in rows:
@@ -195,7 +215,7 @@ def normalise(data):
     for k, v in list(data.items()):
         if v == "":
             data[k] = None
-    for group in ("lines", "devices"):
+    for group in ("lines", "devices", "services"):
         for item in data.get(group, []):
             for k, v in list(item.items()):
                 if v == "":
@@ -236,6 +256,12 @@ def _run_extraction(path, text, carrier_hint, provider, invoice_id, feedback=Non
 
 
 def extract(path, text, carrier_hint, invoice_id):
+    from . import learning
+    if carrier_hint:
+        parsed = learning.active_parse(carrier_hint, text)
+        if parsed:
+            ok, diff = reconcile(parsed)
+            return parsed, "parser", f"parser:{carrier_hint}", ok, diff
     setting = db.get_setting("ai_provider")
     provider = "claude"
     if setting in ("local", "local_fallback") and text and len(text) > 200 and ai.local_available():
@@ -313,6 +339,12 @@ def store(invoice_id, data):
         c.execute("DELETE FROM charges WHERE invoice_id=?", (invoice_id,))
         c.execute("DELETE FROM lines WHERE invoice_id=?", (invoice_id,))
         c.execute("DELETE FROM devices WHERE invoice_id=?", (invoice_id,))
+        c.execute("DELETE FROM services WHERE invoice_id=?", (invoice_id,))
+        for sv in data.get("services", []):
+            c.execute("INSERT INTO services(invoice_id, carrier, period_month, service_type, address, plan_name, speed,"
+                      " amount) VALUES (?,?,?,?,?,?,?,?)",
+                      (invoice_id, data.get("carrier"), month, sv.get("service_type"), sv.get("address"),
+                       sv.get("plan_name"), sv.get("speed"), sv.get("amount")))
         for l in data.get("lines", []):
             sums = {k: 0.0 for k in CATEGORIES}
             for ch in l.get("charges", []):
@@ -403,7 +435,30 @@ def process_invoice(invoice_id):
             learn(data["carrier"], data, invoice_id)
         db.log_event("invoice_processed", inv["owner_email"], inv["session_id"], invoice_id=invoice_id,
                      carrier=data.get("carrier"), recon_ok=ok)
+        run_learning(invoice_id, inv, text, data)
     except Exception as e:
         traceback.print_exc()
         db.x("UPDATE invoices SET status='failed', error=?, processed_at=? WHERE id=?",
              (f"{type(e).__name__}: {e}"[:500], time.time(), invoice_id))
+
+
+def run_learning(invoice_id, inv, text, data):
+    """Learning mode: audit, update the format guide, review the analysis. The bill is already visible to the
+    customer; summary emails wait for this to finish (learning_state)."""
+    from . import learning
+    if db.get_setting("learning_mode") != "on":
+        return
+    db.x("UPDATE invoices SET learning_state='running' WHERE id=?", (invoice_id,))
+    try:
+        fixed = learning.learn_from(invoice_id, inv["path"], text, data)
+        if fixed is not data:
+            store(invoice_id, fixed)
+            ok, diff = reconcile(fixed)
+            db.x("UPDATE invoices SET recon_ok=?, recon_diff=?, confidence=? WHERE id=?",
+                 (int(ok), diff, 0.98 if ok else 0.6, invoice_id))
+            if ok:
+                learn(fixed["carrier"], fixed, invoice_id)
+            data = fixed
+        learning.after_store(invoice_id, data.get("carrier"), text, data, inv["owner_email"], inv["session_id"])
+    finally:
+        db.x("UPDATE invoices SET learning_state='done' WHERE id=?", (invoice_id,))

@@ -30,12 +30,17 @@
       <button data-t="people">People &amp; lines</button>
       <button data-t="fit">Plan fit</button>
       <button data-t="savings">Savings</button>
+      <button data-t="broadband" id="bbTab">Broadband</button>
       <button data-t="hardware">Hardware</button>
       <button data-t="bills">Bills</button>
     </div>
 
     <!-- Overview -->
     <section data-p="overview">
+      <div class="card notes hidden" id="notesCard" style="margin-bottom:20px">
+        <div class="card-head"><div><h3>Our expert's take</h3><p class="small muted">Written from your bills and the current plans on each provider's website.</p></div></div>
+        <div class="notes-grid" id="notesList"></div>
+      </div>
       <div class="grid-main">
         <div class="card"><div class="card-head"><div><h3>Where the money goes</h3><p class="small muted">Monthly spend by type of charge, excl GST</p></div></div><div id="catChart" class="chart"></div></div>
         <div class="card"><div class="card-head"><div><h3>Spend mix</h3><p class="small muted" id="mixNote"></p></div></div><div id="mixChart" class="chart"></div></div>
@@ -68,6 +73,12 @@
 
     <!-- Savings -->
     <section data-p="savings" class="hidden"><div class="insights" id="insights"></div></section>
+
+    <!-- Broadband -->
+    <section data-p="broadband" class="hidden">
+      <div class="card"><div class="card-head"><div><h3>Broadband and other services</h3><p class="small muted">Non-mobile services on the same bills, net of bundle discounts, excl GST. These aren't included in your mobile figures.</p></div></div>
+        <div id="bbChart" class="chart"></div><div class="table-wrap"><table class="data" id="bbTable"></table></div></div>
+    </section>
 
     <!-- Hardware -->
     <section data-p="hardware" class="hidden">

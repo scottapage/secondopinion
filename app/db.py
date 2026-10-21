@@ -197,6 +197,98 @@ CREATE TABLE IF NOT EXISTS events (
 );
 CREATE INDEX IF NOT EXISTS ix_events_kind ON events(kind, created_at);
 
+
+-- Non-mobile services on the same bill (broadband, landline...)
+CREATE TABLE IF NOT EXISTS services (
+    id INTEGER PRIMARY KEY,
+    invoice_id INTEGER NOT NULL REFERENCES invoices(id) ON DELETE CASCADE,
+    carrier TEXT,
+    period_month TEXT,
+    service_type TEXT,                  -- broadband | landline | other
+    address TEXT,
+    plan_name TEXT,
+    speed TEXT,
+    amount REAL                         -- net of discounts tied to the service
+);
+
+-- Learning mode: independent audit of each extraction
+CREATE TABLE IF NOT EXISTS audits (
+    id INTEGER PRIMARY KEY,
+    invoice_id INTEGER NOT NULL,
+    corrections TEXT,                   -- JSON list
+    applied INTEGER NOT NULL DEFAULT 0,
+    verdict TEXT,
+    model TEXT,
+    created_at REAL NOT NULL
+);
+
+-- Living, Claude-maintained guide to each carrier's bill format
+CREATE TABLE IF NOT EXISTS format_guides (
+    carrier TEXT PRIMARY KEY,
+    guide TEXT NOT NULL,
+    bills_seen INTEGER NOT NULL DEFAULT 0,
+    version INTEGER NOT NULL DEFAULT 1,
+    updated_at REAL NOT NULL
+);
+CREATE TABLE IF NOT EXISTS guide_history (
+    id INTEGER PRIMARY KEY,
+    carrier TEXT NOT NULL,
+    version INTEGER NOT NULL,
+    guide TEXT NOT NULL,
+    invoice_id INTEGER,
+    created_at REAL NOT NULL
+);
+
+-- New finding types proposed by the analysis reviewer, for the superadmin to approve
+CREATE TABLE IF NOT EXISTS suggestions (
+    id INTEGER PRIMARY KEY,
+    carrier TEXT,
+    title TEXT NOT NULL,
+    detail TEXT,
+    example TEXT,
+    est_monthly_saving REAL,
+    status TEXT NOT NULL DEFAULT 'pending',   -- pending | approved | rejected
+    invoice_id INTEGER,
+    owner_email TEXT,
+    created_at REAL NOT NULL
+);
+
+-- Expert notes written for each customer from all their bills
+CREATE TABLE IF NOT EXISTS customer_notes (
+    owner TEXT PRIMARY KEY,             -- email, or session id for anonymous uploads
+    notes TEXT NOT NULL,                -- JSON list
+    updated_at REAL NOT NULL
+);
+
+-- Deterministic parsers generated from audited bills; shadow-tested before activation
+CREATE TABLE IF NOT EXISTS parsers (
+    id INTEGER PRIMARY KEY,
+    carrier TEXT NOT NULL,
+    code TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'shadow',    -- shadow | active | retired
+    matches INTEGER NOT NULL DEFAULT 0,
+    mismatches INTEGER NOT NULL DEFAULT 0,
+    streak INTEGER NOT NULL DEFAULT 0,
+    last_result TEXT,
+    created_at REAL NOT NULL
+);
+
+-- Current plans from provider websites, catalogued by an agent
+CREATE TABLE IF NOT EXISTS plan_catalogue (
+    id INTEGER PRIMARY KEY,
+    provider TEXT NOT NULL,             -- spark | one | 2degrees
+    category TEXT NOT NULL,             -- mobile | broadband
+    plan_name TEXT NOT NULL,
+    price_excl_gst REAL,
+    data_gb REAL,                       -- -1 unlimited (mobile)
+    speed TEXT,                         -- broadband
+    inclusions TEXT,
+    conditions TEXT,
+    source_url TEXT,
+    fetched_at REAL NOT NULL,
+    active INTEGER NOT NULL DEFAULT 1
+);
+
 CREATE TABLE IF NOT EXISTS settings (
     key TEXT PRIMARY KEY,
     value TEXT
@@ -226,9 +318,17 @@ def tx():
         conn.close()
 
 
+MIGRATIONS = ["ALTER TABLE invoices ADD COLUMN learning_state TEXT"]
+
+
 def init():
     with tx() as c:
         c.executescript(SCHEMA)
+        for m in MIGRATIONS:
+            try:
+                c.execute(m)
+            except sqlite3.OperationalError:
+                pass
         if c.execute("SELECT COUNT(*) FROM offers").fetchone()[0] == 0:
             now = time.time()
             for i, (title, subtitle, badge) in enumerate([

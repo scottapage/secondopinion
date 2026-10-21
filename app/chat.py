@@ -10,7 +10,7 @@ import time
 from . import ai, analysis, db
 
 SYSTEM = """You are the SecondOpinion assistant. You help a New Zealand business understand its mobile phone bills
-(Spark, One NZ, 2degrees) and how to control the cost.
+(Spark, One NZ, 2degrees) - mobile and broadband - and how to control the cost.
 
 Style:
 - Conversational, direct and concise: lead with the answer in a sentence or two. Usually under 120 words.
@@ -31,7 +31,13 @@ The user's data is in SQLite tables (one row per line per bill month; month is '
         hardware_cost, other_cost, discount)
   charges(month, number, user_name, description, category, amount)
      category in (plan, addon, usage, roaming, hardware, one_off, discount, account, other)
-  devices(month, number, description, monthly_amount, payments_remaining, remaining_balance)"""
+  devices(month, number, description, monthly_amount, payments_remaining, remaining_balance)
+  services(month, carrier, service_type /* broadband|landline|other */, address, plan_name, speed, amount)
+     -- non-mobile services on the same bills, net monthly amount
+  plan_catalogue(provider /* spark|one|2degrees */, category /* mobile|broadband */, plan_name, price_excl_gst,
+                 data_gb /* -1 unlimited */, speed, inclusions, conditions, source_url)
+     -- current business plans from the providers' websites: use it to explain what a plan includes or to compare.
+     Note team structures: a "Team" price usually requires one full-price "Plan Leader" line on the account."""
 
 TOOLS = [{
     "name": "run_sql",
@@ -56,7 +62,13 @@ def _user_db(email):
                            addon_cost, hardware_cost, other_cost, discount);
         CREATE TABLE charges(month, number, user_name, description, category, amount);
         CREATE TABLE devices(month, number, description, monthly_amount, payments_remaining, remaining_balance);
+        CREATE TABLE services(month, carrier, service_type, address, plan_name, speed, amount);
+        CREATE TABLE plan_catalogue(provider, category, plan_name, price_excl_gst, data_gb, speed, inclusions,
+                                    conditions, source_url);
     """)
+    mem.executemany("INSERT INTO plan_catalogue VALUES (?,?,?,?,?,?,?,?,?)", [
+        (r["provider"], r["category"], r["plan_name"], r["price_excl_gst"], r["data_gb"], r["speed"], r["inclusions"],
+         r["conditions"], r["source_url"]) for r in db.q("SELECT * FROM plan_catalogue WHERE active=1")])
     invs = db.q("SELECT * FROM invoices WHERE owner_email=? AND status='done'", (email.lower(),))
     ids = [i["id"] for i in invs]
     if not ids:
@@ -81,6 +93,9 @@ def _user_db(email):
     mem.executemany("INSERT INTO charges VALUES (?,?,?,?,?,?)", [
         (month[c["invoice_id"]], c["number"], names.get(c["line_id"]), c["description"], c["category"], c["amount"])
         for c in db.q(f"SELECT * FROM charges WHERE invoice_id IN ({ph})", ids)])
+    mem.executemany("INSERT INTO services VALUES (?,?,?,?,?,?,?)", [
+        (s["period_month"], s["carrier"], s["service_type"], s["address"], s["plan_name"], s["speed"], s["amount"])
+        for s in db.q(f"SELECT * FROM services WHERE invoice_id IN ({ph})", ids)])
     mem.executemany("INSERT INTO devices VALUES (?,?,?,?,?,?)", [
         (month[d["invoice_id"]], d["number"], d["description"], d["monthly_amount"], d["payments_remaining"],
          d["remaining_balance"]) for d in db.q(f"SELECT * FROM devices WHERE invoice_id IN ({ph})", ids)])

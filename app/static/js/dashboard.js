@@ -19,6 +19,7 @@
       A.accounts.forEach(a => { const o = document.createElement('option'); o.value = a.number || ''; o.textContent = a.carrier + ' ' + (a.number || '') + (a.name ? ' - ' + a.name : ''); $('fAccount').appendChild(o); });
     }
     if (A.accounts.length < 2) $('fAccount').classList.add('hidden');
+    $('bbTab').classList.toggle('hidden', !(A.services || []).length);
     renderHeader(); renderTab();
   }
 
@@ -37,7 +38,7 @@
 
   function renderTab() {
     document.querySelectorAll('[data-p]').forEach(s => s.classList.toggle('hidden', s.dataset.p !== tab));
-    ({ overview: renderOverview, people: renderPeople, fit: renderFit, savings: renderSavings, hardware: renderHardware, bills: renderBills })[tab]();
+    ({ overview: renderOverview, people: renderPeople, fit: renderFit, savings: renderSavings, broadband: renderBroadband, hardware: renderHardware, bills: renderBills })[tab]();
     setTimeout(() => document.querySelectorAll('[data-p="' + tab + '"] .chart').forEach(el => { const c = echarts.getInstanceByDom(el); c && c.resize(); }), 30);
   }
   document.querySelectorAll('#tabs button').forEach(b => b.onclick = () => {
@@ -45,8 +46,24 @@
   });
   $('fAccount').onchange = load;
 
+  // ---- Broadband & other services
+  function renderBroadband() {
+    const S = A.services || [];
+    make('bbChart', {
+      tooltip: Object.assign({}, SO.base.tooltip, { trigger: 'axis', valueFormatter: v => v == null ? '-' : money(v, 2) }),
+      legend: { bottom: 0, icon: 'circle', itemWidth: 9 }, grid: { left: 8, right: 16, top: 16, bottom: 36, containLabel: true },
+      xAxis: axisX(A.month_labels), yAxis: axisY(), color: SERIES,
+      series: S.map(s => ({ name: (s.address || s.type).slice(0, 30), type: 'bar', stack: 's', barMaxWidth: 46, data: s.spend }))
+    });
+    $('bbTable').innerHTML = '<tr><th>Service</th><th>Address</th><th>Plan</th><th class="r">Avg / month</th></tr>' +
+      S.map(s => '<tr><td>' + esc(s.type) + '<span class="tiny">' + esc(s.carrier) + '</span></td><td>' + esc(s.address || '-') + '</td><td>' + esc(s.plan || '-') + (s.speed ? '<span class="tiny">' + esc(s.speed) + '</span>' : '') + '</td><td class="r num"><b>' + money(s.avg, 2) + '</b></td></tr>').join('');
+  }
+
   // ---- Overview
   function renderOverview() {
+    const notes = A.notes || [];
+    $('notesCard').classList.toggle('hidden', !notes.length);
+    $('notesList').innerHTML = notes.map(n => '<div class="note"><div class="h">' + esc(n.title) + '</div><p>' + esc(n.body) + '</p>' + (n.est_monthly_saving > 0 ? '<div class="save">Worth about ' + money(n.est_monthly_saving * 12) + ' a year</div>' : '') + '</div>').join('');
     const cats = Object.keys(CAT).filter(c => A.category_month[c] && A.category_month[c].some(v => Math.abs(v) > 0.005));
     make('catChart', {
       tooltip: Object.assign({}, SO.base.tooltip, { trigger: 'axis', valueFormatter: v => money(v, 2) }),

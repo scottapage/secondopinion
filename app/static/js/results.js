@@ -50,6 +50,10 @@
 
     A.lines.slice(0, Math.min(6, A.lines.length)).forEach(l => selected.add(l.number));
     renderChips(); renderChart(); renderTable(); renderInsights();
+    if ((A.notes || []).length) {
+      $('notesTeaser').classList.remove('hidden');
+      $('notesTitles').innerHTML = A.notes.map(n => '<div style="padding:6px 0;border-top:1px solid #F1F1F2;font-weight:600;color:#003660">' + esc(n.title) + '</div>').join('');
+    }
     document.querySelectorAll('#metricSeg button').forEach(b => b.onclick = () => {
       document.querySelectorAll('#metricSeg button').forEach(x => x.classList.remove('on')); b.classList.add('on');
       metric = b.dataset.m; renderChart();

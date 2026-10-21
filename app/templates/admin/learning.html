@@ -1,0 +1,69 @@
+{% extends "admin/_base.html" %}
+{% block admin %}
+<div class="card" style="margin-bottom:20px;display:flex;justify-content:space-between;gap:20px;align-items:center;flex-wrap:wrap">
+  <div><h3>Learning mode is {{ 'ON' if learning_mode == 'on' else 'OFF' }}</h3>
+  <p class="small muted" style="margin-top:4px;max-width:60em">When on, every bill is read, then independently audited by a second Claude pass. The carrier's format guide is updated from what was learned, and the customer's analysis is reviewed for expert notes and missing findings. Once a carrier has {{ min_bills }} audited bills, Claude writes a parsing recipe for it, which runs silently alongside until you activate it. About US$0.35 per bill, versus about US$0.09 with learning off.</p></div>
+  <form method="post" action="/admin/learning/mode"><input type="hidden" name="mode" value="{{ 'off' if learning_mode == 'on' else 'on' }}"><button class="btn {{ 'ghost' if learning_mode == 'on' else '' }}">Turn {{ 'off' if learning_mode == 'on' else 'on' }}</button></form>
+</div>
+
+<div class="grid-2">
+  <div class="card"><h3>Audit results by carrier</h3>
+    <table class="data" style="margin-top:8px"><tr><th>Carrier</th><th class="r">Audited</th><th class="r">Correct first time</th><th class="r">Corrected</th></tr>
+    {% for s in stats %}<tr><td>{{ s.carrier|carrier }}</td><td class="r">{{ s.n }}</td><td class="r">{{ s.correct }} ({{ (100 * s.correct / s.n)|round|int if s.n }}%)</td><td class="r">{{ s.applied }}</td></tr>{% else %}<tr><td colspan="4" class="muted">No audits yet.</td></tr>{% endfor %}</table>
+  </div>
+  <div class="card" id="parsers"><h3>Parsing recipes</h3>
+    <p class="small muted" style="margin:4px 0 10px">Fixed rules Claude writes per carrier (data only, never code). Activate one when its run of matches reaches {{ streak_needed }}; Claude then only steps in when the recipe's numbers don't add up.</p>
+    {% for p in parsers %}
+    <div style="border-top:1px solid #F1F1F2;padding:10px 0">
+      <b>{{ p.carrier|carrier }}</b> #{{ p.id }} <span class="status {{ 'done' if p.status == 'active' else ('queued' if p.status == 'shadow' else 'duplicate') }}">{{ p.status }}</span>
+      <span class="small"> {{ p.matches }} matched &middot; {{ p.mismatches }} differed &middot; current run of matches {{ p.streak }}</span>
+      {% if p.result.diffs %}<div class="tiny">Last difference: {{ p.result.diffs|join('; ') }}</div>{% endif %}
+      {% if p.result.backtest_failures %}<div class="tiny">Backtest differences: {% for f in p.result.backtest_failures[:3] %}#{{ f.invoice_id }} {{ f.diffs|join(', ') }}; {% endfor %}</div>{% endif %}
+      <div style="display:flex;gap:8px;margin-top:6px">
+        {% if p.status == 'shadow' %}<form method="post" action="/admin/learning/parser/{{ p.id }}"><input type="hidden" name="action" value="activate"><button class="btn sm" {{ 'disabled' if p.streak < streak_needed }}>Activate</button></form>{% endif %}
+        {% if p.status != 'retired' %}<form method="post" action="/admin/learning/parser/{{ p.id }}"><input type="hidden" name="action" value="retire"><button class="btn ghost sm">Retire</button></form>{% endif %}
+        <form method="post" action="/admin/learning/parser/{{ p.id }}"><input type="hidden" name="action" value="backtest"><button class="btn ghost sm">Re-test on all audited bills</button></form>
+      </div>
+      <details><summary class="tiny">View recipe</summary><pre class="json">{{ p.code }}</pre></details>
+    </div>
+    {% else %}<p class="tiny">None yet - generated automatically after {{ min_bills }} audited bills from one carrier.</p>{% endfor %}
+  </div>
+</div>
+
+<div class="card" id="suggestions" style="margin-top:20px"><h3>Suggested new findings</h3>
+  <p class="small muted" style="margin:4px 0 10px">Analysis types the reviewer thinks the system is missing. Approve the ones worth building; approved ones get added to the analysis in the next development round.</p>
+  <div class="table-wrap"><table class="data"><tr><th>Finding</th><th>Example</th><th class="r">Est. saving/mth</th><th>Status</th><th></th></tr>
+  {% for s in suggestions %}<tr><td><b>{{ s.title }}</b><span class="tiny">{{ s.detail }}</span></td><td class="small">{{ s.example }}</td><td class="r">{{ s.est_monthly_saving|money(2) }}</td>
+    <td><span class="status {{ {'approved':'done','rejected':'failed'}.get(s.status, 'queued') }}">{{ s.status }}</span></td>
+    <td style="white-space:nowrap">{% for st in ['approved','rejected'] %}<form method="post" action="/admin/learning/suggestion/{{ s.id }}" style="display:inline"><input type="hidden" name="status" value="{{ st }}"><button class="link-btn small">{{ 'Approve' if st == 'approved' else 'Reject' }}</button></form> {% endfor %}</td></tr>
+  {% else %}<tr><td colspan="5" class="muted">No suggestions yet.</td></tr>{% endfor %}</table></div>
+</div>
+
+<div class="card" id="guides" style="margin-top:20px"><h3>Format guides</h3>
+  <p class="small muted" style="margin:4px 0 10px">Written and updated by Claude after every bill; fed into every extraction for that carrier. You can edit them.</p>
+  {% for g in guides %}
+  <details style="border-top:1px solid #F1F1F2;padding:10px 0"><summary><b>{{ g.carrier|carrier }}</b> <span class="small muted">version {{ g.version }} &middot; {{ g.bills_seen }} bills &middot; updated {{ g.updated_at|dt }}</span></summary>
+    <form method="post" action="/admin/learning/guide"><input type="hidden" name="carrier" value="{{ g.carrier }}"><textarea name="guide" class="json" style="min-height:40vh">{{ g.guide }}</textarea><button class="btn sm" style="margin-top:8px">Save guide</button></form></details>
+  {% else %}<p class="tiny">No guides yet - the first is written after the next bill.</p>{% endfor %}
+</div>
+
+<div class="card" style="margin-top:20px"><h3>Recent audits</h3>
+  <div class="table-wrap"><table class="data"><tr><th>Bill</th><th>Verdict</th><th>Corrections</th></tr>
+  {% for a in audits %}<tr><td><a href="/admin/invoice/{{ a.invoice_id }}">#{{ a.invoice_id }}</a> {{ a.carrier|carrier }}<span class="tiny">{{ a.account_name or a.filename }}</span></td>
+    <td><span class="status {{ 'done' if a.verdict == 'correct' else ('queued' if a.verdict == 'corrected' else 'failed') }}">{{ a.verdict }}</span>{% if a.applied %}<span class="tiny">applied</span>{% endif %}</td>
+    <td class="small">{% for c in a.detail.corrections or [] %}<div><b>{{ c.field }}</b>: {{ c.was }} &rarr; {{ c.now }} <span class="tiny" style="display:inline">({{ c.reason }})</span></div>{% else %}-{% endfor %}</td></tr>
+  {% else %}<tr><td colspan="3" class="muted">No audits yet.</td></tr>{% endfor %}</table></div>
+</div>
+
+<details class="card" style="margin-top:20px"><summary><b>Learned facts ({{ rows|length }})</b> <span class="small muted">plan names, prices and charge categories picked up from reconciled bills</span></summary>
+<div class="table-wrap" style="margin-top:10px"><table class="data">
+<tr><th>Carrier</th><th>Kind</th><th>Pattern</th><th>Meaning</th><th class="r">Seen</th><th>In use</th><th></th></tr>
+{% for k in rows %}
+<tr><td>{{ k.carrier|carrier }}</td><td>{{ k.kind }}</td><td style="max-width:280px">{{ k.key }}</td>
+  <td><form method="post" action="/admin/knowledge/{{ k.id }}" style="display:flex;gap:6px"><input type="hidden" name="action" value="save"><input type="text" name="value" value="{{ k.value }}" style="padding:6px 10px;font-size:13px"><button class="btn ghost sm">Save</button></form></td>
+  <td class="r">{{ k.seen_count }}</td>
+  <td><form method="post" action="/admin/knowledge/{{ k.id }}"><input type="hidden" name="action" value="toggle"><input type="checkbox" {{ 'checked' if k.approved }} onchange="this.form.submit()"></form></td>
+  <td><form method="post" action="/admin/knowledge/{{ k.id }}"><input type="hidden" name="action" value="delete"><button class="link-btn small">Delete</button></form></td></tr>
+{% endfor %}
+</table></div></details>
+{% endblock %}
