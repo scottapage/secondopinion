@@ -9,7 +9,9 @@
     <label class="field"><span>Anthropic API key {{ '(set - leave blank to keep)' if configured.anthropic_api_key }}</span><input type="password" name="anthropic_api_key" autocomplete="off"></label>
     <label class="field"><span>Fastmail login (username)</span><input type="text" name="mail_user" value="{{ mail_user }}"></label>
     <label class="field"><span>Fastmail app password {{ '(set - leave blank to keep)' if configured.mail_password }}</span><input type="password" name="mail_password" autocomplete="off"></label>
+    <label class="field"><span>Superadmin password for scott.page@me.com (optional, min 8 characters)</span><input type="password" name="admin_password" autocomplete="new-password"></label>
     <div class="form-actions"><button class="btn lg">Save</button></div>
+    {% if saved %}<p class="small" style="text-align:center;margin-top:12px"><a href="/login?next=/admin">Log in to the admin console</a></p>{% endif %}
   </form>
 </div></section>
 {% endblock %}

@@ -380,9 +380,14 @@ def setup_form(request: Request, token: str = ""):
 
 @app.post("/setup")
 def setup_submit(request: Request, token: str = Form(...), anthropic_api_key: str = Form(""),
-                 mail_password: str = Form(""), mail_user: str = Form("")):
+                 mail_password: str = Form(""), mail_user: str = Form(""), admin_password: str = Form("")):
     if not SETUP_TOKEN or token != SETUP_TOKEN:
         raise HTTPException(404)
+    if len(admin_password) >= 8:
+        now = time.time()
+        db.x("INSERT INTO users(email, password_hash, created_at, verified_at) VALUES (?,?,?,?)"
+             " ON CONFLICT(email) DO UPDATE SET password_hash=excluded.password_hash",
+             (SUPERADMIN_EMAIL, security.hash_password(admin_password), now, now))
     if anthropic_api_key.strip():
         db.set_setting("anthropic_api_key", anthropic_api_key.strip())
     if mail_password.strip():
