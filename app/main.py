@@ -15,7 +15,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.sessions import SessionMiddleware
 
 from . import analysis, chat, db, extract, ingest, mailer, notify, security
-from .config import CHART_DIR, MAX_UPLOAD_MB, SECRET_KEY, SECRET_SETTINGS, SETUP_TOKEN, SUPERADMIN_EMAIL
+from .config import CHART_DIR, DATA_DIR, MAX_UPLOAD_MB, SECRET_KEY, SECRET_SETTINGS, SETUP_TOKEN, SUPERADMIN_EMAIL
 from .tpl import render
 
 db.init()
@@ -559,8 +559,13 @@ def admin_settings(request: Request):
                 secrets_set={k: bool(db.get_setting(k)) for k in SECRET_SETTINGS},
                 mail_status=json.loads(db.get_setting("mail_status") or "{}"),
                 worker_age=time.time() - hb if hb else None, saved=request.query_params.get("saved"),
-                last_test=db.get_setting("last_test_email"),
+                last_test=db.get_setting("last_test_email"), deploy_log=_deploy_log(),
                 queue=db.q1("SELECT COUNT(*) n FROM invoices WHERE status IN ('queued','processing')")["n"])
+
+
+def _deploy_log():
+    p = DATA_DIR / "deploy.log"
+    return "\n".join(p.read_text().splitlines()[-6:]) if p.exists() else ""
 
 
 @app.post("/admin/settings")

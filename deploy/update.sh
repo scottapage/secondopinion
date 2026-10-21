@@ -2,6 +2,8 @@
 # Pulls the latest main from GitHub and restarts services when it changes.
 # Run every minute by so-update.timer. FORCE=1 redeploys regardless.
 set -euo pipefail
+LOG=/var/lib/secondopinion/deploy.log
+trap 'echo "$(date -Is) FAILED at line $LINENO" >> $LOG' ERR
 APP=/opt/secondopinion/app
 VENV=/opt/secondopinion/venv
 cd "$APP"
@@ -21,6 +23,6 @@ for u in so-web.service so-worker.service so-update.service so-update.timer; do
   cmp -s "deploy/$u" "/etc/systemd/system/$u" || { cp "deploy/$u" /etc/systemd/system/; RELOAD=1; }
 done
 [ "${RELOAD:-0}" = "1" ] && systemctl daemon-reload
-chown -R so:so "$APP"
 systemctl restart so-web so-worker
-echo "$(date -Is) deployed $NEW" >> /var/log/so-deploy.log
+echo "$(date -Is) deployed $NEW" >> $LOG
+tail -n 50 $LOG > $LOG.tmp && mv $LOG.tmp $LOG && chown so:so $LOG

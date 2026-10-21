@@ -11,6 +11,7 @@
         {% if mail_status.at %}<span class="tiny">checked {{ mail_status.at|dt }}</span>{% endif %}</dd>
       <dt>Anthropic key</dt><dd>{{ 'set' if secrets_set.anthropic_api_key else 'MISSING' }}</dd>
       <dt>Mail password</dt><dd>{{ 'set' if secrets_set.mail_password else 'MISSING' }}</dd>
+      {% if deploy_log %}<dt>Deploys</dt><dd><pre style="margin:0;font-size:11px;white-space:pre-wrap">{{ deploy_log }}</pre></dd>{% endif %}
       {% if last_test %}<dt>Last test email</dt><dd>{{ last_test }}</dd>{% endif %}
     </dl>
     <div style="display:flex;gap:10px;margin-top:18px;flex-wrap:wrap">
