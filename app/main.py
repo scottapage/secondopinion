@@ -689,7 +689,8 @@ def activity(hours=24):
     since = time.time() - hours * 3600
     ev = db.q("SELECT kind, email, session_id, meta, created_at FROM events WHERE created_at>? ORDER BY id DESC",
               (since,))
-    views = [e for e in ev if e["kind"] == "page_view"]
+    # Only views recorded by the tracking middleware (they carry a device); older entries included bots
+    views = [e for e in ev if e["kind"] == "page_view" and "device" in (e["meta"] or "")]
     metas = [json.loads(e["meta"] or "{}") for e in views]
     count = lambda k: sum(1 for e in ev if e["kind"] == k)
     tally = lambda key: sorted(
