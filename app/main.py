@@ -219,7 +219,7 @@ def _send_code(request, email, purpose, next=""):
             notify.code(email, code, purpose)
         except Exception as e:
             return _auth(request, "register" if purpose == "register" else "forgot", email=email, next=next,
-                         error=f"We couldn't send the email ({type(e).__name__}). Please try again shortly.")
+                         error=f"We couldn't send the email ({type(e).__name__}: {str(e)[:160]}). Please try again shortly.")
     request.session["pending_email"] = email
     request.session["pending_purpose"] = purpose
     return _auth(request, "verify", email=email, next=next)
