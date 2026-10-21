@@ -1,0 +1,6 @@
+[Unit]
+Description=SecondOpinion auto-deploy from GitHub
+
+[Service]
+Type=oneshot
+ExecStart=/opt/secondopinion/app/deploy/update.sh

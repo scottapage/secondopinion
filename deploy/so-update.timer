@@ -1,0 +1,9 @@
+[Unit]
+Description=Check GitHub for new SecondOpinion code every minute
+
+[Timer]
+OnBootSec=60
+OnUnitActiveSec=60
+
+[Install]
+WantedBy=timers.target

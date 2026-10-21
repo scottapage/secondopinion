@@ -1,0 +1,15 @@
+{
+	email scott.page@me.com
+}
+
+www.secondopinion.co.nz, __IPHOST__ {
+	encode gzip
+	request_body {
+		max_size 60MB
+	}
+	reverse_proxy 127.0.0.1:8000
+}
+
+secondopinion.co.nz {
+	redir https://www.secondopinion.co.nz{uri} permanent
+}

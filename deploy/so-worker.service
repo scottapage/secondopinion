@@ -1,0 +1,14 @@
+[Unit]
+Description=SecondOpinion worker (mail polling + bill analysis)
+After=network.target
+
+[Service]
+User=so
+WorkingDirectory=/opt/secondopinion/app
+EnvironmentFile=/etc/secondopinion.env
+ExecStart=/opt/secondopinion/venv/bin/python -m app.worker
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
