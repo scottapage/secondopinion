@@ -642,12 +642,17 @@ def setup_inspect(token: str = "", invoice_id: int = 0, pdf: int = 0):
 
 
 @app.post("/setup/reprocess")
-def setup_reprocess(token: str = Form(...), ids: str = Form(...), forget_value: str = Form("")):
+def setup_reprocess(token: str = Form(...), ids: str = Form(...), forget_value: str = Form(""),
+                    resend: str = Form("")):
     """Re-queue bills for extraction; optionally drop learned facts with a given meaning (e.g. a retired category)."""
     if not SETUP_TOKEN or token != SETUP_TOKEN:
         raise HTTPException(404)
     if forget_value:
         db.x("DELETE FROM knowledge WHERE value=?", (forget_value,))
     for i in [int(x) for x in ids.split(",") if x.strip().isdigit()]:
-        db.x("UPDATE invoices SET status='queued', error=NULL WHERE id=?", (i,))
+        if resend:
+            db.x("UPDATE submissions SET notified_at=NULL, notify_error=NULL WHERE id=(SELECT submission_id FROM"
+                 " invoices WHERE id=?)", (i,))
+        else:
+            db.x("UPDATE invoices SET status='queued', error=NULL WHERE id=?", (i,))
     return {"ok": True}
