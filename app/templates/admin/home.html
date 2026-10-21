@@ -1,5 +1,19 @@
 {% extends "admin/_base.html" %}
 {% block admin %}
+<div class="card" style="margin-bottom:20px">
+  <div class="card-head"><div><h3>Last 24 hours</h3><p class="small muted">Human visits only (bots excluded). Refresh to update.</p></div></div>
+  <div class="kpis" style="grid-template-columns:repeat(auto-fit,minmax(130px,1fr))">
+    {% for label, v in [('Visitors', live.visitors), ('Page views', live.page_views), ('Uploads', live.uploads), ('Emails in', live.emails_in), ('Registrations', live.registrations), ('AI questions', live.ai_questions), ('Offer requests', live.offer_requests), ('Errors', live.errors)] %}
+    <div class="kpi" style="padding:14px 16px"><div class="label">{{ label }}</div><div class="value" style="font-size:24px{{ ';color:#F1600D' if label == 'Errors' and v }}">{{ v }}</div></div>
+    {% endfor %}
+  </div>
+  <div class="grid-3" style="margin-top:18px">
+    <div><b class="small">Top pages</b>{% for p, n in live.pages %}<div class="small" style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid #F1F1F2"><span>{{ p }}</span><b>{{ n }}</b></div>{% else %}<p class="tiny">None yet</p>{% endfor %}</div>
+    <div><b class="small">Where they came from</b>{% for p, n in live.referrers %}<div class="small" style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid #F1F1F2"><span>{{ p }}</span><b>{{ n }}</b></div>{% else %}<p class="tiny">Direct / none yet</p>{% endfor %}
+      <div style="margin-top:10px">{% for d, n in live.devices %}<span class="chip" style="margin:4px 4px 0 0">{{ d }} {{ n }}</span>{% endfor %}</div></div>
+    <div><b class="small">Activity</b><div style="max-height:220px;overflow:auto">{% for e in live.feed[:25] %}<div class="small" style="padding:4px 0;border-bottom:1px solid #F1F1F2"><span class="tiny" style="display:inline">{{ e.at|dt }}</span> {{ e.kind.replace('_',' ') }} {{ e.email or '' }}{% if e.meta.error %} <span style="color:#B5470A">{{ e.meta.error[:80] }}</span>{% endif %}</div>{% else %}<p class="tiny">Nothing yet</p>{% endfor %}</div></div>
+  </div>
+</div>
 <div class="kpis">
   <div class="kpi accent"><div class="label">Bills received</div><div class="value">{{ s.invoices }}</div><div class="sub">{% for r in s.by_source %}{{ r.n }} via {{ r.source }}{{ ', ' if not loop.last }}{% endfor %}</div></div>
   <div class="kpi"><div class="label">Email addresses</div><div class="value">{{ s.emails_known }}</div><div class="sub">{{ s.users }} registered</div></div>

@@ -32,6 +32,34 @@ except Exception:
     VERSION = "dev"
 
 
+BOT_RE = re.compile(r"bot|crawl|spider|slurp|preview|monitor|curl|python|headless|wget|httpx", re.I)
+SKIP_PREFIXES = ("/static", "/api/", "/c/", "/healthz", "/setup", "/invoice/", "/favicon")
+
+
+@app.middleware("http")
+async def track(request: Request, call_next):
+    """Record page views (humans only) and unhandled errors in the events table."""
+    path = request.url.path
+    try:
+        response = await call_next(request)
+    except Exception as e:
+        db.log_event("error", None, None, path=path, error=f"{type(e).__name__}: {e}"[:300])
+        raise
+    if response.status_code >= 500:
+        db.log_event("error", None, None, path=path, status=response.status_code)
+    ua = request.headers.get("user-agent", "")
+    if (request.method == "GET" and not path.startswith(SKIP_PREFIXES) and response.status_code < 400
+            and ua and not BOT_RE.search(ua)):
+        ref = request.headers.get("referer", "")
+        ref_host = re.sub(r"^https?://([^/]+).*$", r"\1", ref) if ref else ""
+        if "secondopinion.co.nz" in ref_host or "sslip.io" in ref_host:
+            ref_host = ""
+        sess = request.scope.get("session") or {}
+        db.log_event("page_view", sess.get("email"), sess.get("sid"), path=path[:120],
+                     ref=ref_host[:80] or None, device="mobile" if re.search(r"Mobi|Android|iPhone", ua) else "desktop")
+    return response
+
+
 # ---------- helpers ----------
 
 def sid(request):
@@ -85,7 +113,6 @@ def healthz():
 @app.get("/", response_class=HTMLResponse)
 def index(request: Request):
     sid(request)
-    db.log_event("page_view", current_email(request), request.session.get("sid"), path="/")
     return page(request, "index.html")
 
 
@@ -404,7 +431,7 @@ def admin_home(request: Request):
     require_admin(request)
     recent = db.q("SELECT i.*, s.source FROM invoices i LEFT JOIN submissions s ON s.id=i.submission_id"
                   " ORDER BY i.id DESC LIMIT 12")
-    return page(request, "admin/home.html", s=analysis.admin_stats(), recent=recent, tab="home")
+    return page(request, "admin/home.html", s=analysis.admin_stats(), recent=recent, tab="home", live=activity(24))
 
 
 @app.get("/admin/invoices", response_class=HTMLResponse)
@@ -656,3 +683,43 @@ def setup_reprocess(token: str = Form(...), ids: str = Form(...), forget_value: 
         else:
             db.x("UPDATE invoices SET status='queued', error=NULL WHERE id=?", (i,))
     return {"ok": True}
+
+
+def activity(hours=24):
+    since = time.time() - hours * 3600
+    ev = db.q("SELECT kind, email, session_id, meta, created_at FROM events WHERE created_at>? ORDER BY id DESC",
+              (since,))
+    views = [e for e in ev if e["kind"] == "page_view"]
+    metas = [json.loads(e["meta"] or "{}") for e in views]
+    count = lambda k: sum(1 for e in ev if e["kind"] == k)
+    tally = lambda key: sorted(
+        ((v, sum(1 for m in metas if m.get(key) == v)) for v in {m.get(key) for m in metas if m.get(key)}),
+        key=lambda t: -t[1])
+    return {
+        "hours": hours,
+        "page_views": len(views),
+        "visitors": len({e["session_id"] for e in views if e["session_id"]}),
+        "uploads": count("upload"), "emails_in": count("email_received"), "registrations": count("registered"),
+        "results_views": count("results_viewed"), "dashboard_views": count("dashboard_viewed"),
+        "ai_questions": count("chat"), "offer_requests": count("offer_request"), "errors": count("error"),
+        "pages": tally("path")[:10], "referrers": tally("ref")[:10], "devices": tally("device"),
+        "bills": db.q("SELECT status, COUNT(*) n FROM invoices WHERE created_at>? GROUP BY status", (since,)),
+        "failed_bills": db.q("SELECT id, filename, owner_email, error FROM invoices WHERE created_at>?"
+                             " AND status IN ('failed','rejected')", (since,)),
+        "unsent_emails": db.q("SELECT id, email, notify_error FROM submissions WHERE created_at>?"
+                              " AND notify_error IS NOT NULL", (since,)),
+        "ai_cost_usd": db.q1("SELECT ROUND(COALESCE(SUM(cost_usd),0),2) v FROM ai_usage WHERE created_at>?",
+                             (since,))["v"],
+        "error_events": [json.loads(e["meta"] or "{}") | {"at": e["created_at"]} for e in ev if e["kind"] == "error"][:20],
+        "feed": [{"kind": e["kind"], "email": e["email"], "meta": json.loads(e["meta"] or "{}"), "at": e["created_at"]}
+                 for e in ev if e["kind"] != "page_view"][:60],
+        "mail_status": json.loads(db.get_setting("mail_status") or "{}"),
+        "worker_age_s": round(time.time() - float(db.get_setting("worker_heartbeat") or 0)),
+    }
+
+
+@app.get("/setup/stats")
+def setup_stats(token: str = "", hours: float = 24):
+    if not SETUP_TOKEN or token != SETUP_TOKEN:
+        raise HTTPException(404)
+    return activity(hours)
