@@ -617,3 +617,24 @@ def http_error(request: Request, exc: StarletteHTTPException):
 @app.get("/privacy", response_class=HTMLResponse)
 def privacy(request: Request):
     return page(request, "privacy.html")
+
+
+@app.get("/setup/inspect")
+def setup_inspect(token: str = "", invoice_id: int = 0, pdf: int = 0):
+    """Diagnostics for checking extraction quality (setup-token protected)."""
+    if not SETUP_TOKEN or token != SETUP_TOKEN:
+        raise HTTPException(404)
+    if not invoice_id:
+        return db.q("SELECT id, owner_email, filename, status, error, carrier, account_name, period_month, total_excl_gst,"
+                    " line_count, recon_ok, recon_diff, pages, has_text, provider, model, duration_s, created_at"
+                    " FROM invoices ORDER BY id DESC LIMIT 30")
+    inv = db.q1("SELECT * FROM invoices WHERE id=?", (invoice_id,))
+    if not inv:
+        raise HTTPException(404)
+    if pdf:
+        return FileResponse(inv["path"], media_type="application/pdf")
+    _, text = extract.read_pdf(inv["path"])
+    inv["extraction_json"] = json.loads(inv["extraction_json"]) if inv["extraction_json"] else None
+    inv["pdf_text"] = text
+    inv["usage"] = db.q("SELECT * FROM ai_usage WHERE invoice_id=?", (invoice_id,))
+    return inv
