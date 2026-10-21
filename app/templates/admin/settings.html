@@ -1,0 +1,47 @@
+{% extends "admin/_base.html" %}
+{% block admin %}
+{% if saved %}<div class="alert ok" style="margin-bottom:16px">{{ {'1':'Settings saved.','test':'Test email: ' ~ (last_test or ''),'poll':'Mailbox check started - refresh in a few seconds.'}[saved] }}</div>{% endif %}
+<div class="grid-2">
+  <div class="card"><h3>System status</h3>
+    <dl class="kv" style="margin-top:12px">
+      <dt>Version</dt><dd>{{ version }}</dd>
+      <dt>Worker</dt><dd>{% if worker_age is not none and worker_age < 30 %}<span class="status done">running</span>{% else %}<span class="status failed">not responding</span>{% endif %}</dd>
+      <dt>Bills in queue</dt><dd>{{ queue }}</dd>
+      <dt>Mailbox</dt><dd>{% if mail_status.ok %}<span class="status done">OK</span> processed {{ mail_status.processed }} last check{% elif mail_status %}<span class="status failed">error</span> {{ mail_status.error }}{% else %}not checked yet{% endif %}
+        {% if mail_status.at %}<span class="tiny">checked {{ mail_status.at|dt }}</span>{% endif %}</dd>
+      <dt>Anthropic key</dt><dd>{{ 'set' if secrets_set.anthropic_api_key else 'MISSING' }}</dd>
+      <dt>Mail password</dt><dd>{{ 'set' if secrets_set.mail_password else 'MISSING' }}</dd>
+      {% if last_test %}<dt>Last test email</dt><dd>{{ last_test }}</dd>{% endif %}
+    </dl>
+    <div style="display:flex;gap:10px;margin-top:18px;flex-wrap:wrap">
+      <form method="post" action="/admin/test-email"><button class="btn ghost sm">Send me a test email</button></form>
+      <form method="post" action="/admin/poll-now"><button class="btn ghost sm">Check mailbox now</button></form>
+    </div>
+  </div>
+  <form class="card" method="post" action="/admin/settings"><h3>Sales &amp; offers</h3>
+    <label class="field"><span>Sales team email (receives "Make me an offer" requests)</span><input type="email" name="sales_email" value="{{ vals.sales_email }}"></label>
+    <label class="field"><span>Booking link (Calendly, Microsoft Bookings - optional)</span><input type="url" name="booking_url" value="{{ vals.booking_url }}"></label>
+    <button class="btn" style="margin-top:16px">Save</button>
+  </form>
+</div>
+<form method="post" action="/admin/settings" class="grid-2" style="margin-top:20px">
+  <div class="card"><h3>AI analysis</h3>
+    <label class="field"><span>Bill reader</span><select name="ai_provider">
+      {% for v, l in [('claude','Claude (recommended)'),('local_fallback','Local model first, Claude if unavailable or unreconciled'),('local','Local model only (Claude for scanned bills)')] %}<option value="{{ v }}" {{ 'selected' if vals.ai_provider == v }}>{{ l }}</option>{% endfor %}</select></label>
+    <label class="field"><span>Claude model for bills</span><input type="text" name="claude_model" value="{{ vals.claude_model }}"></label>
+    <label class="field"><span>Claude model for Ask AI</span><input type="text" name="chat_model" value="{{ vals.chat_model }}"></label>
+    <label class="field"><span>Local AI URL (LM Studio over Tailscale)</span><input type="text" name="local_ai_url" value="{{ vals.local_ai_url }}" placeholder="http://macbook-pro.tailnet.ts.net:1234/v1"></label>
+    <label class="field"><span>Local model name</span><input type="text" name="local_ai_model" value="{{ vals.local_ai_model }}"></label>
+    <label class="field"><span>Anthropic API key (leave blank to keep)</span><input type="password" name="anthropic_api_key" autocomplete="off"></label>
+    <button class="btn" style="margin-top:16px">Save</button>
+  </div>
+  <div class="card"><h3>Mailbox</h3>
+    <label class="field"><span>Polling</span><select name="mail_polling"><option value="on" {{ 'selected' if vals.mail_polling == 'on' }}>On - check every minute</option><option value="off" {{ 'selected' if vals.mail_polling != 'on' }}>Off</option></select></label>
+    <label class="field"><span>Address</span><input type="email" name="mail_address" value="{{ vals.mail_address }}"></label>
+    <label class="field"><span>Login username</span><input type="text" name="mail_user" value="{{ vals.mail_user }}"></label>
+    <label class="field"><span>App password (leave blank to keep)</span><input type="password" name="mail_password" autocomplete="off"></label>
+    <div class="grid-2" style="gap:12px"><label class="field"><span>IMAP host</span><input type="text" name="imap_host" value="{{ vals.imap_host }}"></label><label class="field"><span>SMTP host</span><input type="text" name="smtp_host" value="{{ vals.smtp_host }}"></label></div>
+    <button class="btn" style="margin-top:16px">Save</button>
+  </div>
+</form>
+{% endblock %}

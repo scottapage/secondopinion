@@ -1,0 +1,75 @@
+{% extends "email/_base.html" %}
+{% block preheader %}{% if a.has_data %}{{ a.kpi.lines }} lines, {{ a.kpi.monthly|money }}/month excl GST{% if a.kpi.savings_month > 0 %} - up to {{ a.kpi.savings_year|money }}/year in potential savings{% endif %}{% else %}We had trouble reading the bill you sent{% endif %}{% endblock %}
+{% block body %}
+{% if a.has_data %}
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+  <tr><td style="background:#003660;padding:32px 32px 28px 32px;">
+    <div style="font-size:13px;letter-spacing:1px;text-transform:uppercase;color:#4DBBE4;font-weight:700;">Your second opinion</div>
+    <div style="font-size:26px;line-height:32px;font-weight:800;color:#ffffff;padding-top:8px;">You're spending {{ a.kpi.monthly|money }} a month across {{ a.kpi.lines }} mobile line{{ 's' if a.kpi.lines != 1 }}.</div>
+    {% if a.kpi.savings_month > 0 %}<div style="font-size:16px;line-height:24px;color:#B3E2F3;padding-top:10px;">We've found up to <strong style="color:#ffffff;">{{ a.kpi.savings_year|money }} a year</strong> you may be able to save.</div>{% endif %}
+  </td></tr>
+  <tr><td style="padding:24px 24px 4px 24px;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr>
+      {% for label, value in [("Monthly spend", a.kpi.monthly|money), ("Per line", a.kpi.per_line|money), ("Yearly run-rate", a.kpi.annual|money)] %}
+      <td width="33%" style="padding:6px;"><div style="background:#F5F5F7;border-radius:10px;padding:14px 12px;">
+        <div style="font-size:12px;color:#61696D;">{{ label }}</div>
+        <div style="font-size:22px;font-weight:800;color:#003660;padding-top:2px;">{{ value }}</div></div></td>
+      {% endfor %}
+    </tr></table>
+    <div style="font-size:11px;color:#8E9699;padding:2px 8px 0 8px;">All amounts exclude GST. Based on {{ a.kpi.bills }} bill{{ 's' if a.kpi.bills != 1 }} from {{ a.month_labels[0] }}{% if a.month_labels|length > 1 %} to {{ a.month_labels[-1] }}{% endif %}.</div>
+  </td></tr>
+  {% if spend_chart %}<tr><td style="padding:22px 32px 0 32px;">
+    <div style="font-size:17px;font-weight:800;color:#1D292E;">Where the money goes</div>
+    <img src="{{ spend_chart }}" width="536" alt="Monthly spend by category" style="display:block;width:100%;max-width:536px;height:auto;border:0;padding-top:10px;">
+  </td></tr>{% endif %}
+  <tr><td style="padding:22px 32px 0 32px;">
+    <div style="font-size:17px;font-weight:800;color:#1D292E;padding-bottom:10px;">Your biggest lines</div>
+    {% set maxv = (a.lines[0].avg if a.lines else 1) or 1 %}
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+    {% for l in a.lines[:6] %}
+      <tr><td style="padding:5px 0;font-size:13px;width:38%;color:#1D292E;">{{ l.label[:24] }}<div style="font-size:11px;color:#8E9699;">{{ l.plan or l.display }}</div></td>
+          {% set pct = [((l.avg / maxv) * 100)|round|int, 3]|max %}
+          <td width="46%" style="padding:5px 0;width:46%;"><table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="width:100%;"><tr>
+            <td width="{{ pct }}%" style="width:{{ pct }}%;background:{{ '#F1600D' if 'idle' in l.flags else '#009ED8' }};height:12px;border-radius:6px;font-size:1px;line-height:12px;">&nbsp;</td>{% if pct < 100 %}<td style="font-size:1px;line-height:12px;">&nbsp;</td>{% endif %}</tr></table></td>
+          <td style="padding:5px 0 5px 10px;font-size:13px;font-weight:700;text-align:right;white-space:nowrap;">{{ l.avg|money }}</td></tr>
+    {% endfor %}
+    </table>
+    {% if a.lines|length > 6 %}<div style="font-size:12px;color:#8E9699;padding-top:6px;">+ {{ a.lines|length - 6 }} more line{{ 's' if a.lines|length - 6 != 1 }}</div>{% endif %}
+  </td></tr>
+  <tr><td style="padding:24px 32px 0 32px;">
+    <div style="font-size:17px;font-weight:800;color:#1D292E;padding-bottom:10px;">What we noticed</div>
+    {% for i in a.insights %}
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:10px;"><tr>
+      <td style="border-left:4px solid {{ '#F1600D' if i.saving > 0 else '#BBBFC0' }};background:#F5F5F7;border-radius:0 10px 10px 0;padding:12px 14px;">
+        <div style="font-size:12px;font-weight:700;color:#61696D;text-transform:uppercase;letter-spacing:0.6px;">{{ i.title }}</div>
+        <div style="font-size:15px;font-weight:700;color:#1D292E;padding-top:2px;">{{ i.headline }}</div>
+        {% if registered %}<div style="font-size:13px;color:#61696D;padding-top:4px;line-height:19px;">{{ i.body }}</div>{% endif %}
+      </td></tr></table>
+    {% endfor %}
+  </td></tr>
+  <tr><td style="padding:16px 32px 32px 32px;">
+    {% if registered %}
+      <div style="font-size:15px;line-height:23px;color:#1D292E;padding-bottom:16px;">Your full analysis - covering every bill you've sent us - is ready on your dashboard, with line-by-line trends, plan fit and an AI assistant you can ask about your bills.</div>
+      {% with href=cta_url, label="View your full analysis" %}{% include "email/_button.html" %}{% endwith %}
+    {% else %}
+      <div style="background:#E0F3FA;border-radius:12px;padding:20px;">
+        <div style="font-size:17px;font-weight:800;color:#003660;">See the full picture - free</div>
+        <div style="font-size:14px;line-height:21px;color:#1D292E;padding:6px 0 16px 0;">Create an account to see which lines and plans are costing you, how usage is trending month to month, and get a tailored offer. Your bills are already waiting for you.</div>
+        {% with href=cta_url, label="Create your free account" %}{% include "email/_button.html" %}{% endwith %}
+      </div>
+    {% endif %}
+  </td></tr>
+</table>
+{% else %}
+<div style="padding:32px;">
+  <div style="font-size:22px;font-weight:800;color:#003660;">We couldn't analyse that bill</div>
+  <div style="font-size:15px;line-height:23px;padding-top:10px;">Thanks for sending it through. Unfortunately we weren't able to read it as a Spark, One NZ or 2degrees mobile bill.</div>
+</div>
+{% endif %}
+{% if problems %}
+<div style="padding:0 32px 28px 32px;">
+  <div style="font-size:13px;font-weight:700;color:#61696D;padding-bottom:6px;">Files we couldn't use</div>
+  {% for p in problems %}<div style="font-size:13px;line-height:20px;color:#61696D;">&bull; {{ p.filename }} - {{ p.error or "could not be read" }}</div>{% endfor %}
+</div>
+{% endif %}
+{% endblock %}

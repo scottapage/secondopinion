@@ -1,0 +1,8 @@
+{% if a.has_data %}Your second opinion is ready.
+
+You're spending {{ a.kpi.monthly|money }} a month (excl GST) across {{ a.kpi.lines }} mobile lines.{% if a.kpi.savings_month > 0 %} We've found up to {{ a.kpi.savings_year|money }} a year in potential savings.{% endif %}
+
+{% for i in a.insights %}- {{ i.title }}: {{ i.headline }}
+{% endfor %}
+{% if registered %}View your full analysis: {{ cta_url }}{% else %}Create your free account to see the full analysis: {{ cta_url }}{% endif %}
+{% else %}We couldn't analyse the bill you sent. We currently support Spark, One NZ and 2degrees PDF bills.{% endif %}

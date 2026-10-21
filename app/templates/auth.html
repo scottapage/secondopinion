@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% block footer %}{% endblock %}
+{% block body %}
+<section class="auth"><div class="card">
+{% if mode == 'register' %}
+  <h2>Create your free account</h2>
+  <p class="muted">See the full analysis of your bills. We'll email you a code to confirm it's you.</p>
+  <form method="post" action="/register">
+    <input type="hidden" name="next" value="{{ next }}">
+    <label class="field"><span>Work email</span><input type="email" name="email" value="{{ email }}" required autofocus autocomplete="email"></label>
+    {% if error %}<div class="alert err">{{ error }}</div>{% endif %}
+    <div class="form-actions"><button class="btn lg">Email me a code</button></div>
+  </form>
+  <p class="small muted" style="margin-top:20px;text-align:center">Already have an account? <a href="/login{{ '?next=' ~ next if next }}">Log in</a></p>
+  <p class="tiny" style="margin-top:14px;text-align:center">Emailed us bills before? Use that same address - they'll be waiting for you.</p>
+
+{% elif mode == 'verify' %}
+  <h2>Check your email</h2>
+  <p class="muted">We sent a 6-digit code to <b>{{ email }}</b>. It expires in 15 minutes.</p>
+  <form method="post" action="/verify">
+    <input type="hidden" name="next" value="{{ next }}">
+    <label class="field"><span>Code</span><input type="text" name="code" class="code-input" inputmode="numeric" autocomplete="one-time-code" maxlength="7" required autofocus></label>
+    {% if error %}<div class="alert err">{{ error }}</div>{% endif %}
+    <div class="form-actions"><button class="btn lg">Continue</button></div>
+  </form>
+  <form method="post" action="/resend" style="text-align:center;margin-top:16px"><input type="hidden" name="next" value="{{ next }}"><span class="small muted">Didn't get it? Check your spam folder or </span><button class="link-btn small">send a new code</button></form>
+
+{% elif mode == 'password' %}
+  <h2>{{ 'Set a new password' if user and user.password_hash else 'Set your password' }}</h2>
+  <p class="muted">Email confirmed: <b>{{ email }}</b></p>
+  <form method="post" action="/set-password">
+    <input type="hidden" name="next" value="{{ next }}">
+    {% if not (user and user.password_hash) %}
+    <label class="field"><span>Your name</span><input type="text" name="name" autocomplete="name"></label>
+    <label class="field"><span>Company</span><input type="text" name="company" autocomplete="organization"></label>
+    {% endif %}
+    <label class="field"><span>Password</span><input type="password" name="password" minlength="8" required autocomplete="new-password" {{ 'autofocus' if user and user.password_hash }}></label>
+    <p class="tiny" style="margin-top:6px">At least 8 characters.</p>
+    {% if error %}<div class="alert err">{{ error }}</div>{% endif %}
+    <div class="form-actions"><button class="btn lg">See my analysis</button></div>
+  </form>
+
+{% elif mode == 'login' %}
+  <h2>Log in</h2>
+  {% if info %}<div class="alert info">{{ info }}</div>{% endif %}
+  <form method="post" action="/login">
+    <input type="hidden" name="next" value="{{ next }}">
+    <label class="field"><span>Email</span><input type="email" name="email" value="{{ email }}" required {{ 'autofocus' if not email }} autocomplete="email"></label>
+    <label class="field"><span>Password</span><input type="password" name="password" required {{ 'autofocus' if email }} autocomplete="current-password"></label>
+    {% if error %}<div class="alert err">{{ error }}</div>{% endif %}
+    <div class="form-actions"><button class="btn lg">Log in</button></div>
+  </form>
+  <p class="small muted" style="margin-top:20px;text-align:center"><a href="/forgot">Forgot your password?</a> &middot; <a href="/register{{ '?next=' ~ next if next }}">Create an account</a></p>
+
+{% elif mode == 'forgot' %}
+  <h2>Reset your password</h2>
+  <p class="muted">We'll email you a code so you can set a new password.</p>
+  <form method="post" action="/forgot">
+    <label class="field"><span>Email</span><input type="email" name="email" value="{{ email }}" required autofocus></label>
+    {% if error %}<div class="alert err">{{ error }}</div>{% endif %}
+    <div class="form-actions"><button class="btn lg">Email me a code</button></div>
+  </form>
+{% endif %}
+</div></section>
+{% endblock %}

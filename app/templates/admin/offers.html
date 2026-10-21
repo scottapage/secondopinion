@@ -1,0 +1,17 @@
+{% extends "admin/_base.html" %}
+{% block admin %}
+<p class="muted" style="margin-bottom:14px">Active offers appear on the "Make me an offer" page.</p>
+<div class="grid-2">
+{% for o in rows + [{'id': '', 'title': '', 'subtitle': '', 'details': '', 'badge': '', 'active': 1, 'sort': rows|length}] %}
+<form class="card" method="post" action="/admin/offers">
+  <input type="hidden" name="id" value="{{ o.id }}">
+  <h3>{{ o.title or 'New offer' }}</h3>
+  <label class="field"><span>Title</span><input type="text" name="title" value="{{ o.title }}" required></label>
+  <label class="field"><span>Subtitle</span><input type="text" name="subtitle" value="{{ o.subtitle or '' }}"></label>
+  <label class="field"><span>Small print</span><input type="text" name="details" value="{{ o.details or '' }}"></label>
+  <div class="grid-2" style="gap:12px"><label class="field"><span>Badge</span><input type="text" name="badge" value="{{ o.badge or '' }}"></label><label class="field"><span>Order</span><input type="number" name="sort" value="{{ o.sort }}"></label></div>
+  <div style="display:flex;gap:14px;align-items:center;margin-top:16px"><label><input type="checkbox" name="active" value="1" {{ 'checked' if o.active }}> Active</label><button class="btn sm">{{ 'Save' if o.id else 'Add offer' }}</button>{% if o.id %}<button class="btn ghost sm" name="delete" value="1" onclick="return confirm('Delete this offer?')">Delete</button>{% endif %}</div>
+</form>
+{% endfor %}
+</div>
+{% endblock %}

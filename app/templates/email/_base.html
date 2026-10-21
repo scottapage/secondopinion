@@ -1,0 +1,17 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light only"><title>SecondOpinion</title></head>
+<body style="margin:0;padding:0;background:#F5F5F7;-webkit-font-smoothing:antialiased;">
+<div style="display:none;max-height:0;overflow:hidden;">{% block preheader %}{% endblock %}</div>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#F5F5F7;"><tr><td align="center" style="padding:28px 12px;">
+<table role="presentation" width="600" cellpadding="0" cellspacing="0" style="width:100%;max-width:600px;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;color:#1D292E;">
+  <tr><td style="padding:0 4px 18px 4px;">
+    <a href="{{ BASE_URL }}" style="text-decoration:none;"><img src="{{ BASE_URL }}/static/img/icon-email.png" width="40" height="28" alt="" style="vertical-align:middle;border:0;"><span style="font-size:21px;font-weight:800;letter-spacing:-0.5px;vertical-align:middle;padding-left:8px;"><span style="color:#003660;">second</span><span style="color:#009ED8;">opinion</span></span></a>
+  </td></tr>
+  <tr><td style="background:#ffffff;border-radius:14px;overflow:hidden;">
+    {% block body %}{% endblock %}
+  </td></tr>
+  <tr><td style="padding:22px 8px;font-size:12px;line-height:18px;color:#8E9699;text-align:center;">
+    SecondOpinion analyses business mobile bills from Spark, One NZ and 2degrees.<br>
+    Email more bills any time to <a href="mailto:mobile@secondopinion.co.nz" style="color:#61696D;">mobile@secondopinion.co.nz</a> &middot; <a href="{{ BASE_URL }}" style="color:#61696D;">secondopinion.co.nz</a>
+  </td></tr>
+</table></td></tr></table></body></html>

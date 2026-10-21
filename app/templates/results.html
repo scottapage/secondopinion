@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+{% block title %}Your bill analysis - SecondOpinion{% endblock %}
+{% block body %}
+<section class="section" style="padding-top:44px"><div class="wrap">
+  <div id="processing">
+    <div class="eyebrow">Analysing</div>
+    <h2 id="procTitle">Reading your bills...</h2>
+    <p class="loading-note">We're reading every line of your bill. This usually takes 20-60 seconds per bill.</p>
+    <div class="progress-list" id="progress" style="margin-top:24px;max-width:720px"></div>
+  </div>
+
+  <div id="analysis" class="hidden">
+    <div class="dash-head" style="padding-top:0">
+      <div>
+        <div class="eyebrow" style="margin-bottom:10px">Your second opinion</div>
+        <h1 style="font-size:clamp(28px,3.4vw,40px)" id="headline"></h1>
+        <p class="muted" style="margin-top:8px" id="subline"></p>
+      </div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap">
+        <a class="btn ghost" href="/">Add more bills</a>
+        <a class="btn orange" href="/offer">Make me an offer</a>
+      </div>
+    </div>
+
+    <div class="kpis" id="kpis"></div>
+
+    <div class="card" style="margin-top:20px">
+      <div class="card-head">
+        <div><h3>Spend and usage by person</h3><p class="small muted">Pick the lines to compare. All amounts exclude GST.</p></div>
+        <div class="seg" id="metricSeg"><button data-m="spend" class="on">Spend</button><button data-m="data">Data (GB)</button><button data-m="share">Share of bill</button></div>
+      </div>
+      <div class="line-chips" id="chips"></div>
+      <div id="lineChart" class="chart tall"></div>
+    </div>
+
+    <div class="card" style="margin-top:20px">
+      <div class="card-head"><div><h3>Every line at a glance</h3><p class="small muted">Sorted by average monthly cost.</p></div></div>
+      <div class="table-wrap"><table class="data" id="lineTable"></table></div>
+    </div>
+
+    <h2 style="margin:48px 0 6px">What we noticed</h2>
+    <p class="muted" style="margin-bottom:20px">Create a free account to see the detail behind each finding - and how much you could save.</p>
+    <div class="insights" id="insights"></div>
+
+    <div class="band" style="margin-top:40px">
+      <div>
+        <h2>See the full picture</h2>
+        <p>Your bills are saved against your email. Create an account to unlock:</p>
+        <ul>
+          <li>Which lines are idle, oversized or racking up extras</li>
+          <li>Your potential savings, line by line</li>
+          <li>Trends across every bill you add, month by month</li>
+          <li>An AI assistant you can ask anything about your bills</li>
+        </ul>
+      </div>
+      <div class="actions">
+        <a class="btn lg" href="/register?next=/dashboard">Create my free account</a>
+        <a class="btn lg white" href="/register?next=/offer">Make me an offer</a>
+        <a href="/login?next=/dashboard" style="color:#B3E2F3;text-align:center;font-size:14px">Already registered? Log in</a>
+      </div>
+    </div>
+  </div>
+
+  <div id="nothing" class="hidden">
+    <h2>We couldn't analyse those files</h2>
+    <p class="lede">We currently support PDF mobile bills from Spark, One NZ and 2degrees.</p>
+    <div class="progress-list" id="problems" style="margin-top:24px;max-width:720px"></div>
+    <a class="btn" href="/" style="margin-top:24px">Try another bill</a>
+  </div>
+</div></section>
+{% endblock %}
+{% block scripts %}
+<script src="/static/vendor/echarts.min.js"></script>
+<script src="/static/js/charts.js?v={{ version }}"></script>
+<script>window.SO_TOKEN = {{ token|tojson }}; window.SO_LOGGED_IN = {{ 'true' if logged_in else 'false' }};</script>
+<script src="/static/js/results.js?v={{ version }}"></script>
+{% endblock %}

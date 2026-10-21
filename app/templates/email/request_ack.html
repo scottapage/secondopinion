@@ -1,0 +1,10 @@
+{% extends "email/_base.html" %}
+{% block body %}
+<div style="padding:32px;">
+  <div style="font-size:22px;font-weight:800;color:#003660;">Thanks - we're on it</div>
+  <div style="font-size:15px;line-height:23px;padding-top:10px;">
+  {% if req.kind == 'call' %}Our business team will be in touch to arrange a call.{% elif offer %}We've passed your interest in <strong>{{ offer.title }}</strong> to our business team, along with your bill analysis.{% else %}Our business team is preparing a tailored quote based on your bill analysis.{% endif %}
+  You'll usually hear from us within one working day.</div>
+  <div style="padding-top:20px;">{% with href=BASE_URL ~ "/dashboard", label="Back to your analysis" %}{% include "email/_button.html" %}{% endwith %}</div>
+</div>
+{% endblock %}

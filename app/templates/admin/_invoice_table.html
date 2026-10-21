@@ -1,0 +1,18 @@
+<div class="table-wrap"><table class="data">
+<tr><th>#</th><th>Received</th><th>From</th><th>File</th><th>Carrier / account</th><th>Period</th><th class="r">Excl GST</th><th class="r">Lines</th><th>Check</th><th>Status</th></tr>
+{% for i in rows %}
+<tr class="click" onclick="location='/admin/invoice/{{ i.id }}'">
+  <td>{{ i.id }}</td>
+  <td class="tiny">{{ i.created_at|dt }}</td>
+  <td>{{ i.owner_email or 'anonymous' }}<span class="tiny">{{ i.source or '' }}</span></td>
+  <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ i.filename }}</td>
+  <td>{{ i.carrier|carrier if i.carrier else '-' }}<span class="tiny">{{ i.account_name or '' }} {{ i.account_number or '' }}</span></td>
+  <td>{{ i.period_month or '-' }}</td>
+  <td class="r num">{{ i.total_excl_gst|money(2) if i.total_excl_gst is not none else '-' }}</td>
+  <td class="r">{{ i.line_count or '-' }}</td>
+  <td>{% if i.verified %}<span class="flag oversized">verified</span>{% elif i.recon_ok == 1 %}<span class="flag" style="background:#E3F4EC;color:#00875A">reconciled</span>{% elif i.recon_ok == 0 %}<span class="flag idle">off {{ i.recon_diff }}</span>{% endif %}</td>
+  <td><span class="status {{ i.status }}">{{ i.status }}</span></td>
+</tr>
+{% else %}<tr><td colspan="10" class="muted">No bills yet.</td></tr>
+{% endfor %}
+</table></div>

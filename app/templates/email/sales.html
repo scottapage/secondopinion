@@ -1,0 +1,44 @@
+{% extends "email/_base.html" %}
+{% block body %}
+<div style="padding:28px 32px;">
+  <div style="font-size:12px;letter-spacing:1px;text-transform:uppercase;color:#F1600D;font-weight:800;">{{ {'quote':'Quote request','offer':'Offer claimed','call':'Call requested'}[req.kind] }}</div>
+  <div style="font-size:22px;font-weight:800;color:#003660;padding-top:4px;">{{ (user.company if user and user.company) or req.email }}</div>
+  <table role="presentation" cellpadding="0" cellspacing="0" style="font-size:14px;line-height:22px;padding-top:10px;">
+    <tr><td style="color:#61696D;padding-right:14px;">Email</td><td><a href="mailto:{{ req.email }}">{{ req.email }}</a></td></tr>
+    {% if user and user.name %}<tr><td style="color:#61696D;padding-right:14px;">Name</td><td>{{ user.name }}</td></tr>{% endif %}
+    {% if req.phone %}<tr><td style="color:#61696D;padding-right:14px;">Phone</td><td>{{ req.phone }}</td></tr>{% endif %}
+    {% if offer %}<tr><td style="color:#61696D;padding-right:14px;">Offer</td><td>{{ offer.title }}</td></tr>{% endif %}
+    {% if req.notes %}<tr><td style="color:#61696D;padding-right:14px;vertical-align:top;">Notes</td><td>{{ req.notes }}</td></tr>{% endif %}
+  </table>
+</div>
+{% if a.has_data %}
+<div style="padding:0 32px 8px 32px;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="font-size:14px;">
+    <tr><td style="background:#F5F5F7;border-radius:10px;padding:14px;">
+      <strong>{{ a.kpi.lines }}</strong> lines &middot; <strong>{{ a.kpi.monthly|money }}</strong>/month excl GST &middot; <strong>{{ a.kpi.annual|money }}</strong>/year &middot; potential savings <strong>{{ a.kpi.savings_year|money }}</strong>/year
+      <div style="color:#61696D;font-size:12px;padding-top:4px;">{% for acc in a.accounts %}{{ acc.carrier }} account {{ acc.number }} ({{ acc.name }}, {{ acc.bills }} bills){% if not loop.last %}; {% endif %}{% endfor %}</div>
+    </td></tr>
+  </table>
+  {% if spend_chart %}<img src="{{ spend_chart }}" width="536" alt="" style="display:block;width:100%;max-width:536px;height:auto;padding-top:14px;">{% endif %}
+</div>
+<div style="padding:8px 32px 18px 32px;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="font-size:12px;border-collapse:collapse;">
+    <tr style="color:#61696D;text-align:left;"><th style="padding:6px 4px;border-bottom:1px solid #E4E5E6;">Line</th><th style="padding:6px 4px;border-bottom:1px solid #E4E5E6;">Plan</th><th style="padding:6px 4px;border-bottom:1px solid #E4E5E6;text-align:right;">Avg/mth</th><th style="padding:6px 4px;border-bottom:1px solid #E4E5E6;text-align:right;">Data</th><th style="padding:6px 4px;border-bottom:1px solid #E4E5E6;">Flags</th></tr>
+    {% for l in a.lines %}
+    <tr><td style="padding:6px 4px;border-bottom:1px solid #F1F1F2;">{{ l.label }}<br><span style="color:#8E9699;">{{ l.display }} &middot; {{ l.carrier }}</span></td>
+      <td style="padding:6px 4px;border-bottom:1px solid #F1F1F2;">{{ l.plan or '-' }}</td>
+      <td style="padding:6px 4px;border-bottom:1px solid #F1F1F2;text-align:right;">{{ l.avg|money(2) }}</td>
+      <td style="padding:6px 4px;border-bottom:1px solid #F1F1F2;text-align:right;">{{ l.avg_data_gb if l.avg_data_gb is not none else '-' }} GB{% if l.allowance_gb %} / {{ 'Unl' if l.allowance_gb == -1 else l.allowance_gb ~ ' GB' }}{% endif %}</td>
+      <td style="padding:6px 4px;border-bottom:1px solid #F1F1F2;color:#F1600D;">{{ l.flags|join(', ') }}</td></tr>
+    {% endfor %}
+  </table>
+</div>
+{% if a.devices %}
+<div style="padding:0 32px 24px 32px;font-size:13px;">
+  <strong>Hardware on repayment</strong>
+  {% for d in a.devices %}<div style="color:#61696D;">{{ d.number }} {{ d.description }} - {{ d.monthly|money(2) }}/mth{% if d.months_left is not none %}, {{ d.months_left }} payments left{% endif %}{% if d.balance %} ({{ d.balance|money }} remaining){% endif %}</div>{% endfor %}
+</div>
+{% endif %}
+{% endif %}
+<div style="padding:0 32px 28px 32px;">{% with href=BASE_URL ~ "/admin/user?email=" ~ req.email, label="Open full analysis" %}{% include "email/_button.html" %}{% endwith %}</div>
+{% endblock %}

@@ -1,0 +1,106 @@
+{% extends "base.html" %}
+{% block title %}My analysis - SecondOpinion{% endblock %}
+{% block body %}
+<div class="wrap">
+  <div class="dash-head">
+    <div>
+      {% if admin_view %}<div class="alert info" style="margin:0 0 14px">Viewing as <b>{{ view_email }}</b> (superadmin)</div>{% endif %}
+      <div class="eyebrow" style="margin-bottom:8px">{{ (user.company if user and user.company) or view_email }}</div>
+      <h1 id="headline">Your mobile spend</h1>
+      <p class="muted" style="margin-top:6px" id="subline"></p>
+    </div>
+    <div class="filters">
+      <select id="fAccount"><option value="">All accounts</option></select>
+      <label class="btn ghost" style="cursor:pointer">Add bills<input type="file" id="addBills" accept="application/pdf,.pdf" multiple hidden></label>
+      <a class="btn orange" href="/offer">Make me an offer</a>
+    </div>
+  </div>
+
+  <div id="pendingNote" class="alert info hidden" style="margin:0 0 18px"></div>
+  <div id="emptyState" class="empty hidden">
+    <h2>No analysed bills yet</h2>
+    <p style="margin:12px 0 24px">Upload your Spark, One NZ or 2degrees bills, or email them to {{ mail_address }}.</p>
+    <a class="btn" href="/">Upload bills</a>
+  </div>
+
+  <div id="dash" class="hidden">
+    <div class="kpis" id="kpis"></div>
+    <div class="tabs" style="margin-top:28px" id="tabs">
+      <button data-t="overview" class="on">Overview</button>
+      <button data-t="people">People &amp; lines</button>
+      <button data-t="fit">Plan fit</button>
+      <button data-t="savings">Savings</button>
+      <button data-t="hardware">Hardware</button>
+      <button data-t="bills">Bills</button>
+    </div>
+
+    <!-- Overview -->
+    <section data-p="overview">
+      <div class="grid-main">
+        <div class="card"><div class="card-head"><div><h3>Where the money goes</h3><p class="small muted">Monthly spend by type of charge, excl GST</p></div></div><div id="catChart" class="chart"></div></div>
+        <div class="card"><div class="card-head"><div><h3>Spend mix</h3><p class="small muted" id="mixNote"></p></div></div><div id="mixChart" class="chart"></div></div>
+      </div>
+      <div class="grid-main" style="margin-top:20px">
+        <div class="card"><div class="card-head"><div><h3>Cost concentration</h3><p class="small muted">How much of the bill your top lines account for</p></div></div><div id="paretoChart" class="chart"></div></div>
+        <div class="card savings"><h3 style="color:#B5470A">Potential savings</h3><div class="big" id="saveBig"></div><p class="small" style="color:#9A3D08" id="saveNote"></p><div id="saveList" style="margin-top:14px"></div>
+          <a class="btn orange" href="/offer" style="margin-top:18px">Get a tailored offer</a></div>
+      </div>
+    </section>
+
+    <!-- People -->
+    <section data-p="people" class="hidden">
+      <div class="card"><div class="card-head"><div><h3>Cost heatmap</h3><p class="small muted">Each row is a person or number; darker means more expensive. Click a row for detail.</p></div>
+        <div class="seg" id="heatSeg"><button data-m="spend" class="on">Spend</button><button data-m="data">Data</button></div></div>
+        <div id="heatChart" class="chart tall"></div></div>
+      <div class="card" style="margin-top:20px"><div class="card-head"><div><h3>All lines</h3><p class="small muted">Click a column to sort, or a row for detail.</p></div><input type="text" id="lineSearch" placeholder="Search name, number or plan" style="max-width:260px;border-radius:999px;padding:8px 14px;font-size:14px"></div>
+        <div class="table-wrap"><table class="data" id="lineTable"></table></div></div>
+    </section>
+
+    <!-- Plan fit -->
+    <section data-p="fit" class="hidden">
+      <div class="card"><div class="card-head"><div><h3>Plan fit: usage vs cost</h3><p class="small muted">Each bubble is a line. Right = uses more of its data allowance; up = costs more. Bottom-left lines may be on plans that are too big; anything past 100% is paying for extras.</p></div></div>
+        <div id="fitChart" class="chart tall"></div></div>
+      <div class="grid-2" style="margin-top:20px">
+        <div class="card"><h3>Plans in use</h3><p class="small muted" style="margin-bottom:12px">Lines and average monthly cost per plan</p><div class="table-wrap"><table class="data" id="planTable"></table></div></div>
+        <div class="card"><h3>Data used vs allowance</h3><p class="small muted" style="margin-bottom:12px">Average monthly use for lines with a data cap</p><div id="utilList"></div></div>
+      </div>
+    </section>
+
+    <!-- Savings -->
+    <section data-p="savings" class="hidden"><div class="insights" id="insights"></div></section>
+
+    <!-- Hardware -->
+    <section data-p="hardware" class="hidden">
+      <div class="card"><div class="card-head"><div><h3>Devices on repayment</h3><p class="small muted">Interest-free hardware still being paid off on your account. A sign-on credit can clear this if you move.</p></div><div id="hwTotal" style="text-align:right"></div></div>
+        <div id="hwChart" class="chart"></div><div class="table-wrap"><table class="data" id="hwTable"></table></div></div>
+    </section>
+
+    <!-- Bills -->
+    <section data-p="bills" class="hidden">
+      <div class="card"><div class="card-head"><div><h3>Your bills</h3><p class="small muted">Every bill you've uploaded or emailed to us. Add more months for a better picture.</p></div></div>
+        <div class="table-wrap"><table class="data" id="billTable"></table></div></div>
+    </section>
+  </div>
+</div>
+
+<div id="drawerBg" class="drawer-bg hidden"></div>
+<aside id="drawer" class="drawer hidden"><button class="btn ghost sm close" id="drawerClose">Close</button><div id="drawerBody"></div></aside>
+
+{% if not admin_view %}
+<button class="ask-fab" id="askFab"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#4DBBE4" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/><path d="M9 10h6M9 13.5h4"/></svg>Ask AI about your bills</button>
+<div class="ask-panel hidden" id="askPanel">
+  <div class="ask-head"><svg width="30" height="21" viewBox="0 0 52 36"><circle cx="18" cy="18" r="16" fill="#003660"/><circle cx="34" cy="18" r="16" fill="#009ED8" stroke="#fff" stroke-width="3"/><path d="M26.5 18.5l5 5 9-10" fill="none" stroke="#fff" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round"/></svg><div><h3>Ask about your bills</h3><div class="tiny">Answers come from your own bill data</div></div><button class="x" id="askClose" aria-label="Close">&times;</button></div>
+  <div class="ask-body" id="askBody"></div>
+  <form class="ask-input" id="askForm"><input type="text" id="askQ" placeholder="e.g. Who spent the most on roaming?" autocomplete="off"><button class="btn" aria-label="Send"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button></form>
+</div>
+{% endif %}
+{% endblock %}
+{% block scripts %}
+<script src="/static/vendor/echarts.min.js"></script>
+<script src="/static/vendor/marked.min.js"></script>
+<script src="/static/vendor/purify.min.js"></script>
+<script src="/static/js/charts.js?v={{ version }}"></script>
+<script>window.SO_AS = {{ (view_email if admin_view else '')|tojson }};</script>
+<script src="/static/js/dashboard.js?v={{ version }}"></script>
+{% if not admin_view %}<script src="/static/js/ask.js?v={{ version }}"></script>{% endif %}
+{% endblock %}

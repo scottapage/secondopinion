@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block title %}Admin - SecondOpinion{% endblock %}
+{% block body %}
+<div class="wrap">
+  <nav class="admin-tabs">
+    {% for k, label in [('home','Overview'),('invoices','Bills'),('users','Users'),('requests','Offer requests'),('offers','Offers'),('knowledge','Learning'),('settings','Settings')] %}
+    <a href="/admin{{ '' if k == 'home' else '/' ~ k }}" class="{{ 'on' if tab == k }}">{{ label }}</a>
+    {% endfor %}
+  </nav>
+  {% block admin %}{% endblock %}
+</div>
+{% endblock %}

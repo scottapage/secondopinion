@@ -1,0 +1,14 @@
+{% extends "admin/_base.html" %}
+{% block admin %}
+<p class="muted" style="margin-bottom:14px">Requests are emailed to the sales address set in Settings, with the customer's analysis attached.</p>
+<div class="card"><div class="table-wrap"><table class="data">
+<tr><th>When</th><th>Customer</th><th>Type</th><th>Offer</th><th>Phone / notes</th><th>Sent to</th><th>Status</th></tr>
+{% for r in rows %}
+<tr><td class="tiny">{{ r.created_at|dt }}</td>
+  <td><a href="/admin/user?email={{ r.email|urlencode }}">{{ r.email }}</a><span class="tiny">{{ r.company or '' }}</span></td>
+  <td>{{ r.kind }}</td><td>{{ r.offer_title or '-' }}</td><td>{{ r.phone or '' }}<span class="tiny">{{ r.notes or '' }}</span></td><td class="tiny">{{ r.sent_to or 'pending' }}</td>
+  <td><form method="post" action="/admin/requests/{{ r.id }}"><select name="status" onchange="this.form.submit()" style="padding:6px 10px;font-size:13px;border-radius:999px">{% for s in ['new','contacted','quoted','won','lost'] %}<option {{ 'selected' if r.status == s }}>{{ s }}</option>{% endfor %}</select></form></td></tr>
+{% else %}<tr><td colspan="7" class="muted">No requests yet.</td></tr>
+{% endfor %}
+</table></div></div>
+{% endblock %}

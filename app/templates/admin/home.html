@@ -1,0 +1,40 @@
+{% extends "admin/_base.html" %}
+{% block admin %}
+<div class="kpis">
+  <div class="kpi accent"><div class="label">Bills received</div><div class="value">{{ s.invoices }}</div><div class="sub">{% for r in s.by_source %}{{ r.n }} via {{ r.source }}{{ ', ' if not loop.last }}{% endfor %}</div></div>
+  <div class="kpi"><div class="label">Email addresses</div><div class="value">{{ s.emails_known }}</div><div class="sub">{{ s.users }} registered</div></div>
+  <div class="kpi"><div class="label">Spend analysed</div><div class="value">{{ s.spend_tracked|money }}</div><div class="sub">{{ s.lines_tracked }} unique lines</div></div>
+  <div class="kpi"><div class="label">AI cost</div><div class="value">${{ '%.2f'|format(s.ai_cost.usd or 0) }}</div><div class="sub">USD · {{ s.ai_cost.calls }} calls</div></div>
+</div>
+<div class="grid-main" style="margin-top:20px">
+  <div class="card"><h3>Activity - last 30 days</h3><div id="daily" class="chart"></div></div>
+  <div class="card"><h3>Funnel</h3>
+    {% set f = s.funnel %}{% set top = [f.submitters or 0, 1]|max %}
+    <div class="funnel" style="margin-top:16px">
+      {% for label, v in [('Submitted bills', f.submitters), ('Viewed results', f.results_views), ('Registered', f.registered), ('Used dashboard', f.dashboard_users), ('Asked AI', f.chat_users), ('Requested offer', f.offer_requests)] %}
+      <div class="row"><span>{{ label }}</span><div class="bar" style="width:{{ (100 * (v or 0) / top)|round }}%"></div><b>{{ v or 0 }}</b></div>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+<div class="grid-3" style="margin-top:20px">
+  <div class="card"><h3>By carrier</h3><table class="data" style="margin-top:8px"><tr><th>Carrier</th><th class="r">Bills</th><th class="r">Reconciled</th><th class="r">Avg secs</th></tr>
+    {% for r in s.by_carrier %}<tr><td>{{ r.carrier|carrier }}</td><td class="r">{{ r.n }}</td><td class="r">{{ r.recon_pct|int if r.recon_pct is not none else '-' }}%</td><td class="r">{{ r.secs|int if r.secs else '-' }}</td></tr>{% endfor %}</table></div>
+  <div class="card"><h3>By status</h3><table class="data" style="margin-top:8px">{% for r in s.by_status %}<tr><td><a href="/admin/invoices?status={{ r.status }}"><span class="status {{ r.status }}">{{ r.status }}</span></a></td><td class="r">{{ r.n }}</td></tr>{% endfor %}</table></div>
+  <div class="card"><h3>Learning</h3><p class="small muted" style="margin:6px 0 10px">Knowledge the analyser feeds back into every extraction.</p>
+    <table class="data">{% for r in s.knowledge %}<tr><td>{{ r.carrier|carrier }}</td><td class="r">{{ r.n }} facts</td></tr>{% endfor %}<tr><td>Verified reference bills</td><td class="r">{{ s.verified }}</td></tr></table>
+    <a href="/admin/knowledge" class="small">View knowledge base &rarr;</a></div>
+</div>
+<div class="card" style="margin-top:20px"><div class="card-head"><h3>Latest bills</h3><a href="/admin/invoices" class="small">All bills &rarr;</a></div>
+  {% with rows=recent %}{% include "admin/_invoice_table.html" %}{% endwith %}</div>
+{% endblock %}
+{% block scripts %}
+<script src="/static/vendor/echarts.min.js"></script>
+<script src="/static/js/charts.js?v={{ version }}"></script>
+<script>
+const D = {{ s.daily|tojson }};
+SO.make('daily', { tooltip: Object.assign({}, SO.base.tooltip, { trigger: 'axis' }), legend: { bottom: 0, icon: 'circle', itemWidth: 8 }, grid: { left: 8, right: 8, top: 16, bottom: 34, containLabel: true },
+  xAxis: SO.axisX(D.map(d => d.d.slice(5))), yAxis: SO.axisY(v => v), color: SO.SERIES,
+  series: [['uploads', 'Web uploads'], ['emails', 'Emails'], ['registrations', 'Registrations'], ['offers', 'Offer requests']].map(([k, n]) => ({ name: n, type: 'bar', stack: 'a', data: D.map(d => d[k]), barMaxWidth: 22 })) });
+</script>
+{% endblock %}

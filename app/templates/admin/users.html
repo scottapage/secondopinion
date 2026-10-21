@@ -1,0 +1,14 @@
+{% extends "admin/_base.html" %}
+{% block admin %}
+<p class="muted" style="margin-bottom:14px">{{ rows|length }} email addresses &middot; plus {{ anon.n }} anonymous browser sessions with {{ anon.bills }} bills not yet linked to an email.</p>
+<div class="card"><div class="table-wrap"><table class="data">
+<tr><th>Email</th><th>Name / company</th><th>Status</th><th class="r">Bills</th><th class="r">AI questions</th><th class="r">Offer requests</th><th>Last login</th><th></th></tr>
+{% for u in rows %}
+<tr><td>{{ u.email }}</td><td>{{ u.name or '' }}<span class="tiny">{{ u.company or '' }}</span></td>
+  <td>{% if u.registered %}<span class="status done">registered</span>{% else %}<span class="status duplicate">email only</span>{% endif %}</td>
+  <td class="r">{{ u.bills }}</td><td class="r">{{ u.questions }}</td><td class="r">{{ u.requests }}</td>
+  <td class="tiny">{{ u.last_login|dt }}</td>
+  <td><a href="/admin/user?email={{ u.email|urlencode }}">View analysis</a></td></tr>
+{% endfor %}
+</table></div></div>
+{% endblock %}

@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block title %}Make me an offer - SecondOpinion{% endblock %}
+{% block body %}
+<section class="section" style="padding-top:44px"><div class="wrap">
+  <div class="eyebrow">Make me an offer</div>
+  <h1 style="font-size:clamp(30px,3.6vw,44px);max-width:20em">Let's see what we can do for you.</h1>
+  {% if a.has_data %}<p class="lede">You're currently spending <b>{{ a.kpi.monthly|money }}</b> a month across <b>{{ a.kpi.lines }}</b> lines{% if a.kpi.savings_year %}, and we've spotted up to <b>{{ a.kpi.savings_year|money }}</b> a year in potential savings{% endif %}.</p>{% endif %}
+
+  {% if sent %}
+  <div class="alert ok" style="margin-top:24px;font-size:16px;padding:18px 20px">
+    {% if sent == 'call' %}Thanks - our business team will be in touch to arrange a call.{% elif sent == 'offer' %}Great choice - we've sent your request and bill analysis to our business team. We'll be in touch within one working day.{% else %}Thanks - our business team is preparing a tailored quote from your analysis. We'll be in touch within one working day.{% endif %}
+  </div>
+  {% endif %}
+
+  {% if offers %}
+  <h2 style="margin:44px 0 18px">Current offers</h2>
+  <div class="offers">
+    {% for o in offers %}
+    <div class="offer">
+      {% if o.badge %}<span class="badge">{{ o.badge }}</span>{% endif %}
+      <div class="title">{{ o.title }}</div>
+      <div class="sub">{{ o.subtitle or '' }}</div>
+      {% if o.details %}<div class="tiny">{{ o.details }}</div>{% endif %}
+      <form method="post" action="/offer"><input type="hidden" name="kind" value="offer"><input type="hidden" name="offer_id" value="{{ o.id }}"><button class="btn" style="width:100%">I'm interested</button></form>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  <div class="grid-2" style="margin-top:28px">
+    <div class="card">
+      <h3>Get a tailored quote</h3>
+      <p class="muted small" style="margin:6px 0 4px">We'll send your full analysis to our business team, who'll build a quote around how your team actually uses their phones.</p>
+      <form method="post" action="/offer">
+        <input type="hidden" name="kind" value="quote">
+        <label class="field"><span>Anything we should know? (optional)</span><textarea name="notes" placeholder="e.g. contract ends in March, we're hiring 5 people, lots of travel to Australia"></textarea></label>
+        <div class="form-actions"><button class="btn orange lg">Send me a quote</button></div>
+      </form>
+    </div>
+    <div class="card">
+      <h3>Talk to the team</h3>
+      <p class="muted small" style="margin:6px 0 4px">Prefer a conversation? Book a time or leave your number and we'll call you.</p>
+      {% if booking_url %}<a class="btn navy lg" href="{{ booking_url }}" target="_blank" rel="noopener" style="margin-top:18px;width:100%">Book a call</a><p class="tiny" style="text-align:center;margin-top:10px">or</p>{% endif %}
+      <form method="post" action="/offer">
+        <input type="hidden" name="kind" value="call">
+        <label class="field"><span>Phone number</span><input type="tel" name="phone" required placeholder="021 123 4567"></label>
+        <label class="field"><span>Best time to call (optional)</span><input type="text" name="notes" placeholder="e.g. weekday mornings"></label>
+        <div class="form-actions"><button class="btn ghost lg">Call me back</button></div>
+      </form>
+    </div>
+  </div>
+</div></section>
+{% endblock %}

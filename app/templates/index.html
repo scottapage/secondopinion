@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block body %}
+<section class="hero"><div class="wrap grid">
+  <div>
+    <div class="eyebrow">Business mobile bill analysis</div>
+    <h1>Paying too much for your business mobiles? Get a second&nbsp;opinion.</h1>
+    <p class="lede">If you're wondering whether you're overpaying, or feel you don't have enough control over your spend, drop one or more of your recent 2degrees, Spark or One NZ mobile bills here. We'll analyse them for you.</p>
+    <div class="carriers"><span class="chip"><span class="dot"></span>2degrees</span><span class="chip"><span class="dot" style="background:#7B2FF7"></span>Spark</span><span class="chip"><span class="dot" style="background:#1D292E"></span>One NZ</span></div>
+  </div>
+  <div>
+    <form class="drop" id="drop" onsubmit="return false">
+      <div class="drop-inner" id="dropInner">
+        <div class="drop-icon"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#009ED8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/><path d="M12 18v-6"/><path d="M9 14.5l3-3 3 3"/></svg></div>
+        <h3>Drop your bills here</h3>
+        <p>or click to choose PDF files - add as many months as you like</p>
+        <input type="file" id="fileInput" accept="application/pdf,.pdf" multiple hidden>
+      </div>
+      <div class="files" id="fileList"></div>
+      <div class="drop-actions hidden" id="dropActions">
+        <button class="btn lg" id="analyseBtn" type="button">Analyse my bills</button>
+      </div>
+      <div class="alert err hidden" id="dropErr"></div>
+    </form>
+    <p class="email-alt">Prefer email? Send your bills to <a href="mailto:{{ mail_address }}">{{ mail_address }}</a></p>
+  </div>
+</div></section>
+
+<section class="section alt" id="how"><div class="wrap">
+  <h2>How it works</h2>
+  <div class="steps">
+    <div class="step"><div class="n">1</div><h3>Send us your bills</h3><p>Upload PDFs here or email them in. The more months you add, the clearer the picture.</p></div>
+    <div class="step"><div class="n">2</div><h3>We read every line</h3><p>We break your bill down by person, plan, usage and extra charges, and track it month to month.</p></div>
+    <div class="step"><div class="n">3</div><h3>See where to save</h3><p>Spot idle lines, wrong-sized plans and roaming leakage - then ask us to make you an offer.</p></div>
+  </div>
+</div></section>
+{% endblock %}
+{% block scripts %}<script src="/static/js/upload.js?v={{ version }}"></script>{% endblock %}

@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en-NZ">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}SecondOpinion - business mobile bill analysis{% endblock %}</title>
+<meta name="description" content="Get a second opinion on your business mobile bills. Upload your Spark, One NZ or 2degrees invoices and see exactly where your money goes.">
+<link rel="icon" href="/static/img/favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/static/css/app.css?v={{ version }}">
+{% block head %}{% endblock %}
+</head>
+<body>
+<header class="top"><div class="wrap">
+  {% include "_logo.html" %}
+  <nav class="nav">
+    {% if user_email %}
+      <a href="/dashboard" class="{{ 'active' if request.url.path == '/dashboard' }}">My analysis</a>
+      <a href="/offer" class="hide-sm {{ 'active' if request.url.path == '/offer' }}">Make me an offer</a>
+      {% if is_admin %}<a href="/admin" class="{{ 'active' if request.url.path.startswith('/admin') }}">Admin</a>{% endif %}
+      <a href="/logout" class="hide-sm">Log out</a>
+    {% else %}
+      <a href="/#how" class="hide-sm">How it works</a>
+      <a href="/login">Log in</a>
+      <a href="/register" class="btn sm">Create account</a>
+    {% endif %}
+  </nav>
+</div></header>
+{% block body %}{% endblock %}
+{% block footer %}
+<footer class="foot"><div class="wrap">
+  <div>&copy; SecondOpinion &middot; Business mobile bill analysis for New Zealand</div>
+  <div>Email bills to <a href="mailto:{{ mail_address }}">{{ mail_address }}</a> &middot; <a href="/privacy">Privacy</a></div>
+</div></footer>
+{% endblock %}
+{% block scripts %}{% endblock %}
+</body>
+</html>

@@ -1,0 +1,10 @@
+{% extends "email/_base.html" %}
+{% block preheader %}Your code is {{ code }}{% endblock %}
+{% block body %}
+<div style="padding:36px 32px;text-align:center;">
+  <div style="font-size:22px;font-weight:800;color:#003660;">{{ title }}</div>
+  <div style="font-size:15px;color:#61696D;padding:8px 0 22px 0;">Enter this code on SecondOpinion. It expires in 15 minutes.</div>
+  <div style="display:inline-block;background:#E0F3FA;border-radius:12px;padding:16px 28px;font-size:34px;font-weight:800;letter-spacing:10px;color:#003660;font-family:'SFMono-Regular',Menlo,Consolas,monospace;">{{ code }}</div>
+  <div style="font-size:12px;color:#8E9699;padding-top:22px;">If you didn't ask for this, you can ignore this email.</div>
+</div>
+{% endblock %}

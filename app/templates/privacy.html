@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block body %}
+<section class="section"><div class="wrap narrow">
+  <h1 style="font-size:36px">Privacy</h1>
+  <div style="margin-top:20px;display:grid;gap:14px;color:var(--ink-2)">
+    <p>SecondOpinion analyses the business mobile bills you send us so we can show you how your spend breaks down and, if you ask, prepare an offer.</p>
+    <p>We store every bill you upload or email, and the details we read from it, against the email address it came from. Only that email address (once verified) and our administrators can see them. We use AI services, including Anthropic's Claude, to read bills and answer your questions.</p>
+    <p>We only share your analysis with our business team when you ask us for an offer, quote or call. We don't sell your information.</p>
+    <p>You can ask us to see, correct or delete your information at any time by emailing <a href="mailto:{{ mail_address }}">{{ mail_address }}</a>, in line with the New Zealand Privacy Act 2020.</p>
+  </div>
+</div></section>
+{% endblock %}

@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block body %}
+<section class="auth"><div class="card" style="max-width:520px">
+  <h2>Platform setup</h2>
+  <p class="muted">Enter the service keys. They're stored on the server only, and can be changed later in Admin &rarr; Settings.</p>
+  {% if saved %}<div class="alert ok">Saved.</div>{% endif %}
+  <form method="post" action="/setup">
+    <input type="hidden" name="token" value="{{ token }}">
+    <label class="field"><span>Anthropic API key {{ '(set - leave blank to keep)' if configured.anthropic_api_key }}</span><input type="password" name="anthropic_api_key" autocomplete="off"></label>
+    <label class="field"><span>Fastmail login (username)</span><input type="text" name="mail_user" value="{{ mail_user }}"></label>
+    <label class="field"><span>Fastmail app password {{ '(set - leave blank to keep)' if configured.mail_password }}</span><input type="password" name="mail_password" autocomplete="off"></label>
+    <div class="form-actions"><button class="btn lg">Save</button></div>
+  </form>
+</div></section>
+{% endblock %}

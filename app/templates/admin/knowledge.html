@@ -1,0 +1,23 @@
+{% extends "admin/_base.html" %}
+{% block admin %}
+<div class="card" style="margin-bottom:20px"><h3>How the analyser learns</h3>
+<p class="small muted" style="margin-top:6px">Every bill that reconciles (line items add up to the invoice total) teaches the analyser its carrier's plan names, prices and charge categories. These facts are fed into the prompt for the next bill from that carrier. Bills you verify on the bill page become reference examples. Untick a fact to stop using it, or edit it to correct it.</p></div>
+<form class="filters" style="margin-bottom:14px"><select name="carrier" onchange="this.form.submit()"><option value="">All carriers</option>{% for c in ['spark','one','2degrees'] %}<option value="{{ c }}" {{ 'selected' if carrier == c }}>{{ c|carrier }}</option>{% endfor %}</select></form>
+<div class="card"><div class="table-wrap"><table class="data">
+<tr><th>Carrier</th><th>Kind</th><th>Pattern</th><th>Meaning</th><th class="r">Seen</th><th>In use</th><th></th></tr>
+{% for k in rows %}
+<tr><td>{{ k.carrier|carrier }}</td><td>{{ k.kind }}</td><td style="max-width:280px">{{ k.key }}</td>
+  <td><form method="post" action="/admin/knowledge/{{ k.id }}" style="display:flex;gap:6px"><input type="hidden" name="action" value="save"><input type="text" name="value" value="{{ k.value }}" style="padding:6px 10px;font-size:13px"><button class="btn ghost sm">Save</button></form></td>
+  <td class="r">{{ k.seen_count }}</td>
+  <td><form method="post" action="/admin/knowledge/{{ k.id }}"><input type="hidden" name="action" value="toggle"><input type="checkbox" {{ 'checked' if k.approved }} onchange="this.form.submit()"></form></td>
+  <td><form method="post" action="/admin/knowledge/{{ k.id }}"><input type="hidden" name="action" value="delete"><button class="link-btn small">Delete</button></form></td></tr>
+{% else %}<tr><td colspan="7" class="muted">Nothing learned yet - it fills up as bills are analysed.</td></tr>
+{% endfor %}
+</table></div></div>
+<form class="card" method="post" action="/admin/knowledge" style="margin-top:20px"><h3>Teach it something</h3>
+  <div class="grid-3" style="gap:12px"><label class="field"><span>Carrier</span><select name="carrier">{% for c in ['spark','one','2degrees'] %}<option value="{{ c }}">{{ c|carrier }}</option>{% endfor %}</select></label>
+  <label class="field"><span>Kind</span><select name="kind"><option>note</option><option>plan</option><option>charge</option></select></label>
+  <label class="field"><span>Pattern / plan name</span><input type="text" name="key" required></label></div>
+  <label class="field"><span>Meaning</span><input type="text" name="value" placeholder="e.g. 'Data Boost' is an addon, or: totals on page 2 are GST inclusive"></label>
+  <button class="btn" style="margin-top:14px">Add</button></form>
+{% endblock %}
