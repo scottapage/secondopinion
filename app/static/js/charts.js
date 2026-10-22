@@ -63,5 +63,23 @@ window.SO = (function () {
     });
   }
 
-  return { C, SERIES, CAT, money, make, axisX, axisY, sparkline, fromSpec, base };
+  const PROV = { '2degrees': ['2degrees', '#009ED8'], one: ['One NZ', '#00A651'], spark: ['Spark', '#D4287F'] };
+  const provColor = (code) => (PROV[code] || ['', '#8E9699'])[1];
+  const provBadge = (code, name) => '<span class="pbadge" style="--pc:' + provColor(code) + '"><i></i>' + (name || (PROV[code] || [code])[0]) + '</span>';
+  function scoreRing(score, size) {
+    const r = (size - 14) / 2, c = 2 * Math.PI * r, col = score >= 85 ? '#00875A' : score >= 70 ? '#009ED8' : score >= 50 ? '#FFC528' : '#F1600D';
+    return '<svg width="' + size + '" height="' + size + '" viewBox="0 0 ' + size + ' ' + size + '"><circle cx="' + size / 2 + '" cy="' + size / 2 + '" r="' + r + '" fill="none" stroke="rgba(255,255,255,.14)" stroke-width="12"/>' +
+      '<circle class="ring" cx="' + size / 2 + '" cy="' + size / 2 + '" r="' + r + '" fill="none" stroke="' + col + '" stroke-width="12" stroke-linecap="round" transform="rotate(-90 ' + size / 2 + ' ' + size / 2 + ')" stroke-dasharray="' + c + '" stroke-dashoffset="' + c + '" style="--target:' + (c * (1 - score / 100)) + '"/></svg>';
+  }
+  function countUp(root) {
+    root.querySelectorAll('[data-count]').forEach(el => {
+      const target = +el.dataset.count, isInt = el.dataset.int === '1', t0 = performance.now(), dur = 1100;
+      const step = (t) => { const k = Math.min((t - t0) / dur, 1), e = 1 - Math.pow(1 - k, 3), v = target * e; el.textContent = isInt ? Math.round(v) : money(v); if (k < 1) requestAnimationFrame(step); };
+      requestAnimationFrame(step);
+    });
+    root.querySelectorAll('.ring').forEach(r => requestAnimationFrame(() => r.style.strokeDashoffset = getComputedStyle(r).getPropertyValue('--target')));
+  }
+  const initials = (name) => (name || '?').split(/\s+/).filter(Boolean).slice(0, 2).map(w => w[0].toUpperCase()).join('') || '?';
+
+  return { C, SERIES, CAT, money, make, axisX, axisY, sparkline, fromSpec, base, PROV, provColor, provBadge, scoreRing, countUp, initials };
 })();

@@ -1,7 +1,7 @@
 {% extends "email/_base.html" %}
 {% block body %}
 <div style="padding:28px 32px;">
-  <div style="font-size:12px;letter-spacing:1px;text-transform:uppercase;color:#F1600D;font-weight:800;">{{ {'quote':'Quote request','offer':'Offer claimed','call':'Call requested'}[req.kind] }}</div>
+  <div style="font-size:12px;letter-spacing:1px;text-transform:uppercase;color:#F1600D;font-weight:800;">{{ {'quote':'Quote request','offer':'Offer claimed','call':'Call requested','dossier':'Sales dossier'}.get(req.kind, 'Request') }}</div>
   <div style="font-size:22px;font-weight:800;color:#003660;padding-top:4px;">{{ (user.company if user and user.company) or req.email }}</div>
   <table role="presentation" cellpadding="0" cellspacing="0" style="font-size:14px;line-height:22px;padding-top:10px;">
     <tr><td style="color:#61696D;padding-right:14px;">Email</td><td><a href="mailto:{{ req.email }}">{{ req.email }}</a></td></tr>
@@ -11,6 +11,17 @@
     {% if req.notes %}<tr><td style="color:#61696D;padding-right:14px;vertical-align:top;">Notes</td><td>{{ req.notes }}</td></tr>{% endif %}
   </table>
 </div>
+{% if a.has_data and dossier %}
+<div style="padding:0 32px 10px 32px;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td style="background:#003660;border-radius:10px;padding:16px 18px;color:#fff;font-size:14px;line-height:22px;">
+    <b style="font-size:16px;">Dossier attached</b><br>
+    Spreadsheet with every service, porting details and recommended 2degrees plan, plus {{ a.invoices|selectattr('status','equalto','done')|list|length }} bill PDF{{ 's' if a.invoices|length != 1 }}{% if skipped %} ({{ skipped }} not attached - size cap){% endif %}.<br>
+    Like-for-like on 2degrees: <b>{{ a.switch.future_month|money(2) }}/mth</b> vs <b>{{ a.switch.current_month|money(2) }}/mth</b> now
+    &rarr; <b>{{ a.switch.saving_year|money }}/yr</b>. Right-sized: <b>{{ a.switch.optimised_saving_year|money }}/yr</b>.
+    Health score <b>{{ a.score.score }}/100</b>. Hardware balance <b>{{ a.switch.hardware_balance|money }}</b>.
+  </td></tr></table>
+</div>
+{% endif %}
 {% if a.has_data %}
 <div style="padding:0 32px 8px 32px;">
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="font-size:14px;">
@@ -40,5 +51,6 @@
 </div>
 {% endif %}
 {% endif %}
-<div style="padding:0 32px 28px 32px;">{% with href=BASE_URL ~ "/admin/user?email=" ~ req.email, label="Open full analysis" %}{% include "email/_button.html" %}{% endwith %}</div>
+<div style="padding:0 32px 28px 32px;">{% with href=BASE_URL ~ "/admin/user?email=" ~ req.email, label="Open full analysis" %}{% include "email/_button.html" %}{% endwith %}
+<p style="font-size:12px;color:#8E9699;margin-top:14px;">To port a number we only need its MSISDN, the losing provider, and their account number and name - all in the attached spreadsheet. Still needed: each user's name and a delivery address, or an eSIM.</p></div>
 {% endblock %}

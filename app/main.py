@@ -14,7 +14,7 @@ from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.sessions import SessionMiddleware
 
-from . import analysis, catalogue, chat, db, example, extract, ingest, learning, mailer, notify, security
+from . import analysis, catalogue, chat, db, dossier, example, extract, ingest, learning, mailer, notify, security
 from .config import BASE_URL, CHART_DIR, DATA_DIR, MAX_UPLOAD_MB, SECRET_KEY, SECRET_SETTINGS, SETUP_TOKEN, SUPERADMIN_EMAIL
 from .tpl import render
 
@@ -161,6 +161,9 @@ def _teaser(a):
     a["kpi"]["savings_month"] = None
     a["kpi"]["savings_year"] = None
     a["devices"] = [{"count": len(a["devices"])}] if a["devices"] else []
+    if a.get("switch"):
+        a["switch"]["lines"] = []
+        a["switch"]["services"] = []
     for l in a["lines"]:
         l["flags"] = []
     a["teaser"] = True
@@ -591,7 +594,8 @@ def admin_users(request: Request):
 def admin_user(request: Request, email: str):
     require_admin(request)
     user = db.q1("SELECT * FROM users WHERE email=?", (email.lower(),))
-    return page(request, "dashboard.html", user=user, view_email=email.lower(), admin_view=True)
+    return page(request, "dashboard.html", user=user, view_email=email.lower(), admin_view=True,
+                msg=request.query_params.get("msg"), sales_email=db.get_setting("sales_email"))
 
 
 @app.get("/admin/requests", response_class=HTMLResponse)
@@ -931,3 +935,33 @@ def setup_catalogue_rows(token: str = ""):
         raise HTTPException(404)
     return db.q("SELECT provider, category, plan_name, price_excl_gst, data_gb, speed, inclusions, conditions"
                 " FROM plan_catalogue WHERE active=1 ORDER BY provider, category, price_excl_gst")
+
+
+# ---------- sales dossier ----------
+
+@app.get("/admin/dossier.xlsx")
+def admin_dossier_xlsx(request: Request, email: str):
+    require_admin(request)
+    from fastapi.responses import Response
+    data, _ = dossier.build_xlsx(email.lower())
+    return Response(data, media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    headers={"Content-Disposition": f'attachment; filename="{dossier.filename(email)}"'})
+
+
+@app.post("/admin/dossier/send")
+def admin_dossier_send(request: Request, email: str = Form(...)):
+    require_admin(request)
+    background(dossier.send, email.lower())
+    return RedirectResponse(f"/admin/user?email={email}&msg=Dossier+is+on+its+way+to+{db.get_setting('sales_email')}", 303)
+
+
+@app.get("/setup/dossier")
+def setup_dossier(token: str = "", email: str = ""):
+    """Diagnostics: the dossier's Services sheet as JSON."""
+    if not SETUP_TOKEN or token != SETUP_TOKEN:
+        raise HTTPException(404)
+    from openpyxl import load_workbook
+    import io
+    data, a = dossier.build_xlsx(email.lower())
+    wb = load_workbook(io.BytesIO(data))
+    return {ws.title: [list(r) for r in ws.iter_rows(values_only=True)] for ws in wb.worksheets}

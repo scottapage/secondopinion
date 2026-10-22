@@ -74,7 +74,7 @@ def main():
     # Bills left mid-processing by a restart go back on the queue
     db.x("UPDATE invoices SET status='queued' WHERE status='processing'")
     db.x("UPDATE invoices SET learning_state='done' WHERE learning_state='running'")
-    example.seed()
+    example.seed(force=db.get_setting("example_version") != "3")
     if db.get_setting("catalogue_requested") == "running":
         db.set_setting("catalogue_requested", "1")
     threading.Thread(target=mail_loop, daemon=True).start()

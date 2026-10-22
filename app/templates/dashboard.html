@@ -2,12 +2,13 @@
 {% block title %}My analysis - SecondOpinion{% endblock %}
 {% block body %}
 <div class="wrap">
-  <div class="dash-head">
+  <div class="dash-head" style="padding-bottom:12px">
     <div>
-      {% if admin_view %}<div class="alert info" style="margin:0 0 14px">Viewing as <b>{{ view_email }}</b> (superadmin)</div>{% endif %}
-      <div class="eyebrow" style="margin-bottom:8px">{{ (user.company if user and user.company) or view_email }}</div>
-      <h1 id="headline">Your mobile spend</h1>
-      <p class="muted" style="margin-top:6px" id="subline"></p>
+      {% if admin_view %}<div class="alert info" style="margin:0 0 14px;display:flex;gap:14px;align-items:center;flex-wrap:wrap">Viewing as <b>{{ view_email }}</b> (superadmin)
+        <a class="btn sm ghost" href="/admin/dossier.xlsx?email={{ view_email|urlencode }}">Download dossier (xlsx)</a>
+        <form method="post" action="/admin/dossier/send" style="display:inline"><input type="hidden" name="email" value="{{ view_email }}"><button class="btn sm">Send dossier to {{ sales_email }}</button></form>
+        {% if msg %}<span style="color:#00875A;font-weight:600">{{ msg }}</span>{% endif %}</div>{% endif %}
+      <div class="eyebrow" style="margin-bottom:0">{{ (user.company if user and user.company) or view_email }}</div>
     </div>
     <div class="filters">
       <select id="fAccount"><option value="">All accounts</option></select>
@@ -15,7 +16,6 @@
       <a class="btn orange" href="/offer">Make me an offer</a>
     </div>
   </div>
-
   <div id="pendingNote" class="alert info hidden" style="margin:0 0 18px"></div>
   <div id="emptyState" class="empty hidden">
     <h2>No analysed bills yet</h2>
@@ -24,9 +24,20 @@
   </div>
 
   <div id="dash" class="hidden">
-    <div class="kpis" id="kpis"></div>
+    <section class="hero-band">
+      <div class="hero-main">
+        <div class="eyebrow light">Your second opinion</div>
+        <h1 id="headline"></h1>
+        <p id="subline"></p>
+        <div class="prov-row" id="provRow"></div>
+      </div>
+      <div class="score-wrap" id="scoreWrap"></div>
+    </section>
+    <div class="kpis" id="kpis" style="margin-top:20px"></div>
+
     <div class="tabs" style="margin-top:28px" id="tabs">
       <button data-t="overview" class="on">Overview</button>
+      <button data-t="switch">Switch to 2degrees</button>
       <button data-t="people">People &amp; lines</button>
       <button data-t="fit">Plan fit</button>
       <button data-t="savings">Savings</button>
@@ -37,18 +48,37 @@
 
     <!-- Overview -->
     <section data-p="overview">
-      <div class="card notes hidden" id="notesCard" style="margin-bottom:20px">
+      <div class="grid-main">
+        <div class="card"><div class="card-head"><div><h3>Your bill, decoded</h3><p class="small muted">What the money actually is each month, across every provider. Excl GST.</p></div></div><div id="decodedChart" class="chart"></div></div>
+        <div class="card"><div class="card-head"><div><h3>Where it flows</h3><p class="small muted">Provider &rarr; what you pay for &rarr; who</p></div></div><div id="sankeyChart" class="chart"></div></div>
+      </div>
+
+      <div class="switch-card" id="switchCard" style="margin-top:20px"></div>
+
+      <div class="card notes hidden" id="notesCard" style="margin-top:20px">
         <div class="card-head"><div><h3>Our expert's take</h3><p class="small muted">Written from your bills and the current plans on each provider's website.</p></div></div>
         <div class="notes-grid" id="notesList"></div>
       </div>
-      <div class="grid-main">
-        <div class="card"><div class="card-head"><div><h3>Where the money goes</h3><p class="small muted">Monthly spend by type of charge, excl GST</p></div></div><div id="catChart" class="chart"></div></div>
-        <div class="card"><div class="card-head"><div><h3>Spend mix</h3><p class="small muted" id="mixNote"></p></div></div><div id="mixChart" class="chart"></div></div>
+      <div class="card facts hidden" id="factsCard" style="margin-top:20px">
+        <div class="card-head"><div><h3>Did you know?</h3><p class="small muted">How your bills actually work - things most people never spot.</p></div></div>
+        <div class="facts-grid" id="factsList"></div>
       </div>
-      <div class="grid-main" style="margin-top:20px">
-        <div class="card"><div class="card-head"><div><h3>Cost concentration</h3><p class="small muted">How much of the bill your top lines account for</p></div></div><div id="paretoChart" class="chart"></div></div>
-        <div class="card savings"><h3 style="color:#B5470A">Potential savings</h3><div class="big" id="saveBig"></div><p class="small" style="color:#9A3D08" id="saveNote"></p><div id="saveList" style="margin-top:14px"></div>
-          <a class="btn orange" href="/offer" style="margin-top:18px">Get a tailored offer</a></div>
+
+      <h2 style="margin:40px 0 6px">Your people</h2>
+      <p class="muted" style="margin-bottom:18px">Every line, who's on it, what it costs and how it's trending. Click a card for the detail.</p>
+      <div class="people-grid" id="peopleGrid"></div>
+    </section>
+
+    <!-- Switch -->
+    <section data-p="switch" class="hidden">
+      <div class="grid-main">
+        <div class="card"><div class="card-head"><div><h3>Line by line</h3><p class="small muted">Each service mapped to the closest current 2degrees business plan. Plan and add-on charges only; usage extras and device repayments aren't changed by switching.</p></div></div>
+          <div class="table-wrap"><table class="data" id="switchTable"></table></div></div>
+        <div class="stack">
+          <div class="card navy" id="switchTotals"></div>
+          <div class="card"><h3>What we'd need to move you</h3><p class="small muted" style="margin:4px 0 10px">Almost everything is already on your bills.</p><div id="portingList"></div></div>
+          <div class="card"><h3>What you'd gain</h3><ul class="gains" id="gainsList"></ul></div>
+        </div>
       </div>
     </section>
 

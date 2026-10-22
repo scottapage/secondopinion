@@ -39,3 +39,10 @@ python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
 ANTHROPIC_API_KEY=... DATA_DIR=./data .venv/bin/uvicorn app.main:app --reload
 DATA_DIR=./data .venv/bin/python -m app.worker
 ```
+
+## Switch scenario, sales dossier and porting
+`app/recommend.py` maps every current service to a 2degrees business plan (from the plan catalogue) and scores
+the estate's "mobile health". `app/dossier.py` builds the sales pack: an XLSX (one row per service with provider,
+LSP account number/name, MSISDN, user, current plan and spend, recommended 2degrees plan and price) plus the
+customer's bill PDFs, emailed to the sales address when a customer asks for an offer, or from Admin.
+See `docs/PORTING.md` for why the bill alone is enough to port a number.

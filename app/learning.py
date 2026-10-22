@@ -134,7 +134,12 @@ customer's mobile (and broadband) bills. The analysis is being shown to the cust
    or control their spend - grounded strictly in the numbers given and the current plan catalogue. Mention
    names and dollar amounts. Where a current plan from the catalogue would clearly suit them better, say so
    and cite it. No generic advice. Amounts exclude GST.
-2. new_finding_types: up to 2 general, reusable analysis rules the automated system is missing (that would
+2. facts: up to 3 "did you know" facts about how THIS customer's bills are structured that most people miss -
+   the mechanics, not savings. E.g. an add-on that is 100% discounted and what happens if the discount lapses;
+   a companion/team plan whose price depends on keeping a lead line; a device discount spread over 36 months
+   that is forfeited on early exit; broadband billed a month in advance. Each: a short title and one or two
+   plain sentences with the numbers.
+3. new_finding_types: up to 2 general, reusable analysis rules the automated system is missing (that would
    apply to many customers, not just this one) - e.g. "lines on legacy plans that have since been repriced".
    Empty if the existing findings or the already-proposed finding types cover it."""
 
@@ -146,13 +151,17 @@ REVIEW_SCHEMA = {
             "properties": {"title": {"type": "string"}, "body": {"type": "string"},
                            "est_monthly_saving": {"type": "number"}},
             "required": ["title", "body", "est_monthly_saving"], "additionalProperties": False}},
+        "facts": {"type": "array", "items": {
+            "type": "object",
+            "properties": {"title": {"type": "string"}, "body": {"type": "string"}},
+            "required": ["title", "body"], "additionalProperties": False}},
         "new_finding_types": {"type": "array", "items": {
             "type": "object",
             "properties": {"title": {"type": "string"}, "detail": {"type": "string"},
                            "example": {"type": "string"}, "est_monthly_saving": {"type": "number"}},
             "required": ["title", "detail", "example", "est_monthly_saving"], "additionalProperties": False}},
     },
-    "required": ["notes", "new_finding_types"],
+    "required": ["notes", "facts", "new_finding_types"],
     "additionalProperties": False,
 }
 
@@ -181,7 +190,9 @@ def review_customer(owner_email, session_id, invoice_id):
         "months": a["month_labels"], "kpi": a["kpi"], "accounts": a["accounts"],
         "lines": [{k: l[k] for k in ("label", "plan", "carrier", "avg", "spend", "avg_data_gb", "allowance_gb",
                                      "roaming", "usage", "addon", "hardware", "flags")} for l in a["lines"][:80]],
-        "services": a.get("services", []),
+        "services": a.get("services", []), "providers": a.get("providers", []),
+        "switch_scenario": {k: a["switch"][k] for k in ("current_month", "future_month", "saving_year",
+                                                       "optimised_saving_year")} if a.get("switch") else None,
         "existing_findings": [{"title": i["title"], "headline": i["headline"]} for i in a["insights"]],
         "devices": a["devices"],
     }
@@ -193,7 +204,8 @@ def review_customer(owner_email, session_id, invoice_id):
                             effort="medium")
     owner = owner_email or f"session:{session_id}"
     db.x("INSERT INTO customer_notes(owner, notes, updated_at) VALUES (?,?,?) ON CONFLICT(owner) DO UPDATE SET"
-         " notes=excluded.notes, updated_at=excluded.updated_at", (owner, json.dumps(out["notes"][:4]), time.time()))
+         " notes=excluded.notes, updated_at=excluded.updated_at",
+         (owner, json.dumps(out["notes"][:4] + [dict(f, kind="fact") for f in out.get("facts", [])[:3]]), time.time()))
     carrier = next(iter(carriers - {"2degrees"}), "2degrees")
     for f in out["new_finding_types"][:2]:
         if not db.q1("SELECT 1 FROM suggestions WHERE lower(title)=lower(?)", (f["title"],)):

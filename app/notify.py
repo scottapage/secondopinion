@@ -67,16 +67,11 @@ def code(to, code_value, purpose):
 
 
 def offer_request(req_id):
+    from . import dossier
     req = db.q1("SELECT * FROM offer_requests WHERE id=?", (req_id,))
     offer = db.q1("SELECT * FROM offers WHERE id=?", (req["offer_id"],)) if req["offer_id"] else None
-    a = analysis.build(email=req["email"])
     to = db.get_setting("sales_email")
-    ctx = {"req": req, "offer": offer, "a": a,
-           "spend_chart": charts.monthly_spend(a) if a.get("has_data") else None,
-           "user": db.q1("SELECT * FROM users WHERE email=?", (req["email"],))}
-    html = render("email/sales.html", **ctx)
-    kinds = {"quote": "Quote request", "offer": "Offer claimed", "call": "Call requested"}
-    mailer.send(to, f"{kinds.get(req['kind'], 'Request')}: {req['email']}", html, reply_to=req["email"])
+    dossier.send(req["email"], req=req, to=to)
     db.x("UPDATE offer_requests SET sent_to=? WHERE id=?", (to, req_id))
     # Confirmation to the customer
     mailer.send(req["email"], "We're on it - your SecondOpinion request",

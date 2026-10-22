@@ -1,5 +1,5 @@
 (function () {
-  const { money, make, axisX, axisY, sparkline, SERIES, C } = SO;
+  const { money, make, axisX, axisY, sparkline, SERIES, C, provColor, provBadge, scoreRing, countUp } = SO;
   const $ = (id) => document.getElementById(id);
   const TICK = '<svg class="tick" viewBox="0 0 20 20"><circle cx="10" cy="10" r="10" fill="#E3F4EC"/><path d="M6 10.5l2.6 2.6L14 7.6" fill="none" stroke="#00875A" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
   const WARN = '<svg class="tick" viewBox="0 0 20 20"><circle cx="10" cy="10" r="10" fill="#FEF2E5"/><path d="M10 5.5v5.5M10 14v.3" stroke="#F1600D" stroke-width="2.2" stroke-linecap="round"/></svg>';
@@ -36,26 +36,46 @@
       return;
     }
     $('processing').classList.add('hidden'); $('analysis').classList.remove('hidden');
-    const k = A.kpi;
-    $('headline').textContent = 'You spend ' + money(k.monthly) + ' a month on ' + k.lines + ' mobile line' + (k.lines === 1 ? '' : 's') + '.';
-    const accts = A.accounts.map(a => a.carrier + ' ' + (a.number || '')).join(', ');
-    $('subline').textContent = 'Based on ' + k.bills + ' bill' + (k.bills === 1 ? '' : 's') + ' (' + A.month_labels[0] + (A.months.length > 1 ? ' to ' + A.month_labels[A.month_labels.length - 1] : '') + ') · ' + accts + (k.other_services ? ' · excludes ' + money(k.other_services) + '/month of broadband and other services on the same bill' : '');
-    const delta = k.monthly_prev ? (k.monthly - k.monthly_prev) : null;
+    const k = A.kpi, provs = A.providers || [], sw = A.switch || {};
+    const provText = provs.length > 1 ? provs.map(p => p.name).slice(0, -1).join(', ') + ' and ' + provs[provs.length - 1].name : (provs[0] ? provs[0].name : '');
+    $('headline').innerHTML = 'You spend <span class="big-num" data-count="' + k.monthly + '">$0</span> a month across ' + k.lines + ' line' + (k.lines === 1 ? '' : 's') + (provText ? ' with ' + esc(provText) : '') + '.';
+    const parts = ['That\u2019s ' + money(k.annual) + ' a year on mobile'];
+    if (k.devices_month) parts.push(money(k.devices_month) + '/mth of it is phone repayments');
+    if (k.other_services) parts.push('plus ' + money(k.other_services) + '/mth of broadband and other services');
+    $('subline').textContent = parts.join(' \u00b7 ') + '. ' + k.bills + ' bill' + (k.bills === 1 ? '' : 's') + ', ' + A.month_labels[0] + (A.months.length > 1 ? ' to ' + A.month_labels[A.month_labels.length - 1] : '') + ', excl GST.';
+    $('provRow').innerHTML = provs.map(p => '<span class="prov-chip" style="--pc:' + provColor(p.code) + '"><i></i>' + esc(p.name) + ' <b>' + money(p.monthly) + '</b><span>' + p.lines + ' line' + (p.lines === 1 ? '' : 's') + '</span></span>').join('');
+    const s = A.score;
+    $('scoreWrap').innerHTML = '<div class="score-ring">' + scoreRing(s.score, 148) + '<div class="score-txt"><b data-count="' + s.score + '" data-int="1">0</b><span>health score</span></div></div>' +
+      '<div class="score-parts"><div class="grade">' + esc(s.grade) + '</div>' + s.parts.map(p => '<div class="sp"><div class="sp-h"><span>' + esc(p.label) + '</span><b>' + p.score + '/' + p.max + '</b></div><div class="sp-bar"><i style="width:' + (100 * p.score / p.max) + '%"></i></div>' + (SO_EXAMPLE ? '<div class="sp-n">' + esc(p.note) + '</div>' : '') + '</div>').join('') + (SO_EXAMPLE ? '' : '<div class="sp-n" style="margin-top:8px">Create an account to see what\u2019s behind each score.</div>') + '</div>';
+    const delta = k.monthly_prev != null ? (k.monthly - k.monthly_prev) : null;
     $('kpis').innerHTML = [
-      ['Monthly spend', money(k.monthly), delta == null ? 'excl GST' : (Math.abs(delta) < 1 ? '<span>No change</span>' : '<span class="' + (delta > 0 ? 'delta-up' : 'delta-down') + '">' + (delta > 0 ? '+' : '') + money(delta) + '</span>') + ' vs last month', true],
-      ['Mobile lines', k.lines, 'on your latest bill'],
-      ['Average per line', money(k.per_line), 'per month'],
-      ['Yearly run-rate', money(k.annual), 'at current spend'],
-    ].map(x => '<div class="kpi' + (x[3] ? ' accent' : '') + '"><div class="label">' + x[0] + '</div><div class="value">' + x[1] + '</div><div class="sub">' + x[2] + '</div></div>').join('');
+      ['Monthly run-rate', money(k.monthly), delta == null ? 'latest bill from each account' : (Math.abs(delta) < 1 ? '<span>No change</span>' : '<span class="' + (delta > 0 ? 'delta-up' : 'delta-down') + '">' + (delta > 0 ? '+' : '') + money(delta) + '</span>') + ' vs previous bills', true],
+      ['Mobile lines', k.lines, 'across ' + A.accounts.length + ' account' + (A.accounts.length === 1 ? '' : 's')],
+      ['Phones being paid off', money(sw.hardware_balance || 0), (A.devices || []).length + ' device' + ((A.devices || []).length === 1 ? '' : 's')],
+      ['On 2degrees instead', money(sw.future_month || 0) + '<span class="tiny" style="display:inline">/mth</span>', (sw.saving_year > 0 ? 'save ' + money(sw.saving_year) + '/yr like-for-like' : 'like-for-like') + (sw.optimised_saving_year > sw.saving_year ? ', up to ' + money(sw.optimised_saving_year) + '/yr right-sized' : ''), false, 'orange'],
+    ].map(x => '<div class="kpi' + (x[3] ? ' accent' : '') + (x[4] ? ' ' + x[4] : '') + '"><div class="label">' + x[0] + '</div><div class="value">' + x[1] + '</div><div class="sub">' + x[2] + '</div></div>').join('');
+    const best = Math.max(sw.saving_year || 0, sw.optimised_saving_year || 0);
+    $('switchCard').innerHTML = '<div class="sw-left"><div class="eyebrow light">If you brought it all to 2degrees</div><div class="sw-big">' + (best > 0 ? '<span data-count="' + best + '">$0</span> a year' : 'Same price, one bill') + '</div><p>Like-for-like plans come to <b>' + money(sw.future_month) + '/mth</b> against <b>' + money(sw.current_month) + '</b> today' + (sw.optimised_saving_year > sw.saving_year ? ', or <b>' + money(sw.optimised_month) + '/mth</b> right-sized where usage allows' : '') + '. Every number on your bills is enough to move it - no forms.</p><div class="sw-actions"><a class="btn white" href="' + (SO_EXAMPLE ? '/' : '/offer') + '">' + (SO_EXAMPLE ? 'Analyse my own bills' : 'Make me an offer') + '</a>' + (SO_EXAMPLE ? '' : '<a class="link-btn light" href="/register?next=/dashboard">See it line by line \u2192</a>') + '</div></div>' +
+      '<div class="sw-right"><div class="sw-cmp"><div><span>Today</span><b data-count="' + sw.current_month + '">$0</b><i>plans + add-ons /mth</i></div><div class="arrow">\u2192</div><div><span>2degrees</span><b data-count="' + sw.future_month + '">$0</b><i>like-for-like /mth</i></div></div><ul class="gains">' + (sw.gains || []).slice(0, 3).map(g => '<li>' + esc(g) + '</li>').join('') + '</ul></div>';
+    const D = A.decoded, DEC_COL = ['#003660', '#009ED8', '#F1600D', '#8E9699', '#4DBBE4', '#BBBFC0'];
+    make('decodedChart', { tooltip: Object.assign({}, SO.base.tooltip, { trigger: 'axis', valueFormatter: v => money(v, 2) }), legend: { bottom: 0, icon: 'circle', itemWidth: 9, textStyle: { color: C.ink2, fontSize: 11 } }, grid: { left: 8, right: 12, top: 12, bottom: 40, containLabel: true }, xAxis: axisX(A.month_labels), yAxis: axisY(),
+      series: D.labels.map((name, i) => ({ name, type: 'bar', stack: i === 5 ? 'f' : 's', barMaxWidth: 44, data: D.series[i], itemStyle: { color: DEC_COL[i] } })) });
+    renderSankey();
+    countUp(document);
 
     A.lines.slice(0, Math.min(6, A.lines.length)).forEach(l => selected.add(l.number));
     renderChips(); renderChart(); renderTable(); renderInsights();
-    if ((A.notes || []).length && A.notes[0].body) {
+    const facts = (A.notes || []).filter(n => n.kind === 'fact'), plainNotes = (A.notes || []).filter(n => n.kind !== 'fact');
+    if (facts.length && facts[0].body) {
+      $('factsCard').classList.remove('hidden');
+      $('factsList').innerHTML = facts.map(n => '<div class="fact"><div class="bulb">\ud83d\udca1</div><div><div class="h">' + esc(n.title) + '</div><p>' + esc(n.body) + '</p></div></div>').join('');
+    }
+    if (plainNotes.length && plainNotes[0].body) {
       $('notesFull').classList.remove('hidden');
-      $('notesList').innerHTML = A.notes.map(n => '<div class="note"><div class="h">' + esc(n.title) + '</div><p>' + esc(n.body) + '</p>' + (n.est_monthly_saving > 0 ? '<div class="save">Worth about ' + money(n.est_monthly_saving * 12) + ' a year</div>' : '') + '</div>').join('');
-    } else if ((A.notes || []).length) {
+      $('notesList').innerHTML = plainNotes.map(n => '<div class="note"><div class="h">' + esc(n.title) + '</div><p>' + esc(n.body) + '</p>' + (n.est_monthly_saving > 0 ? '<div class="save">Worth about ' + money(n.est_monthly_saving * 12) + ' a year</div>' : '') + '</div>').join('');
+    } else if (plainNotes.length) {
       $('notesTeaser').classList.remove('hidden');
-      $('notesTitles').innerHTML = A.notes.map(n => '<div style="padding:6px 0;border-top:1px solid #F1F1F2;font-weight:600;color:#003660">' + esc(n.title) + '</div>').join('');
+      $('notesTitles').innerHTML = plainNotes.map(n => '<div style="padding:6px 0;border-top:1px solid #F1F1F2;font-weight:600;color:#003660">' + esc(n.title) + '</div>').join('');
     }
     document.querySelectorAll('#metricSeg button').forEach(b => b.onclick = () => {
       document.querySelectorAll('#metricSeg button').forEach(x => x.classList.remove('on')); b.classList.add('on');
@@ -105,14 +125,32 @@
   }
 
   function renderTable() {
-    const head = '<tr><th>Person / number</th><th>Plan</th><th class="r">Avg / month</th>' + (A.months.length > 1 ? '<th>Trend</th>' : '') + '<th class="r">Data used</th></tr>';
+    const head = '<tr><th>Person / number</th><th>Provider</th><th>Plan</th><th class="r">Avg / month</th>' + (A.months.length > 1 ? '<th>Trend</th>' : '') + '<th class="r">Data used</th></tr>';
     const max = Math.max(...A.lines.map(l => l.avg), 1);
     $('lineTable').innerHTML = head + A.lines.map(l =>
-      '<tr><td class="who">' + esc(l.label) + '<span class="tiny">' + esc(l.display) + ' · ' + esc(l.carrier) + '</span></td>' +
+      '<tr><td class="who">' + esc(l.label) + '<span class="tiny">' + esc(l.display) + '</span></td><td>' + provBadge(l.carrier_code, l.carrier) + '</td>' +
       '<td>' + esc(l.plan || '-') + '</td>' +
       '<td class="r num"><div class="bar-cell" style="justify-content:flex-end"><div class="bar" style="width:' + Math.max(4, 90 * l.avg / max) + 'px"></div><b>' + money(l.avg, 2) + '</b></div></td>' +
       (A.months.length > 1 ? '<td>' + sparkline(l.spend) + '</td>' : '') +
       '<td class="r num">' + (l.avg_data_gb == null ? '-' : l.avg_data_gb + ' GB') + '</td></tr>').join('');
+  }
+
+  function renderSankey() {
+    const nodes = [], links = [], seen = new Set();
+    const node = (name, color, depth) => { if (!seen.has(name)) { seen.add(name); nodes.push({ name, itemStyle: { color }, depth }); } };
+    const link = (s, t, v) => { if (v > 0.5) links.push({ source: s, target: t, value: +v.toFixed(2) }); };
+    const CATS = { plan: ['Plans', '#003660'], addon: ['Add-ons', '#009ED8'], extras: ['Roaming & extras', '#F1600D'] };
+    A.lines.slice(0, 14).forEach(l => {
+      const n = Math.max(l.spend.filter(v => v != null).length, 1);
+      node(l.carrier, provColor(l.carrier_code), 0);
+      [['plan', l.plan_cost || 0], ['addon', Math.max(l.addon / n, 0)], ['extras', (l.roaming + l.usage) / n]].forEach(([k, v]) => {
+        if (v > 0.5) { node(CATS[k][0], CATS[k][1], 1); link(l.carrier, CATS[k][0], v); node(l.label, provColor(l.carrier_code), 2); link(CATS[k][0], l.label, v); }
+      });
+    });
+    (A.services || []).forEach(s => { node(s.carrier, provColor(s.carrier_code), 0); node('Broadband', '#4DBBE4', 1); link(s.carrier, 'Broadband', s.avg); });
+    if (A.kpi.devices_month > 0.5 && A.providers[0]) { node(A.providers[0].name, provColor(A.providers[0].code), 0); node('Devices', '#8E9699', 1); link(A.providers[0].name, 'Devices', A.kpi.devices_month); }
+    make('sankeyChart', { tooltip: Object.assign({}, SO.base.tooltip, { trigger: 'item', formatter: p => p.dataType === 'edge' ? esc(p.data.source) + ' \u2192 ' + esc(p.data.target) + ': <b>' + money(p.data.value, 2) + '/mth</b>' : '<b>' + esc(p.name) + '</b>' }),
+      series: [{ type: 'sankey', data: nodes, links, left: 4, right: 110, top: 8, bottom: 8, nodeWidth: 14, nodeGap: 10, nodeAlign: 'left', draggable: false, label: { color: C.ink, fontSize: 11, formatter: p => p.name.length > 18 ? p.name.slice(0, 17) + '\u2026' : p.name }, lineStyle: { color: 'gradient', opacity: 0.35, curveness: 0.5 }, emphasis: { focus: 'adjacency' } }] });
   }
 
   function renderInsights() {

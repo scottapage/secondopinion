@@ -11,20 +11,29 @@
   </div>
 
   <div id="analysis" class="hidden">
-    <div class="dash-head" style="padding-top:0">
-      <div>
-        <div class="eyebrow" style="margin-bottom:10px">Your second opinion</div>
-        <h1 style="font-size:clamp(28px,3.4vw,40px)" id="headline"></h1>
-        <p class="muted" style="margin-top:8px" id="subline"></p>
+    <section class="hero-band">
+      <div class="hero-main">
+        <div class="eyebrow light">{{ 'Example analysis' if example else 'Your second opinion' }}</div>
+        <h1 id="headline"></h1>
+        <p id="subline"></p>
+        <div class="prov-row" id="provRow"></div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:20px">
+          {% if example %}<a class="btn white" href="/">Analyse my own bills</a>{% else %}
+          <a class="btn white" href="/register?next=/dashboard">Create a free account</a>
+          <a class="btn orange" href="/offer">Make me an offer</a>{% endif %}
+        </div>
       </div>
-      <div style="display:flex;gap:10px;flex-wrap:wrap">
-        {% if example %}<a class="btn lg" href="/">Analyse my own bills</a>{% else %}
-        <a class="btn ghost" href="/">Add more bills</a>
-        <a class="btn orange" href="/offer">Make me an offer</a>{% endif %}
-      </div>
-    </div>
+      <div class="score-wrap" id="scoreWrap"></div>
+    </section>
 
-    <div class="kpis" id="kpis"></div>
+    <div class="kpis" id="kpis" style="margin-top:20px"></div>
+
+    <div class="switch-card" id="switchCard" style="margin-top:20px"></div>
+
+    <div class="grid-main" style="margin-top:20px">
+      <div class="card"><div class="card-head"><div><h3>Your bill, decoded</h3><p class="small muted">What the money actually is each month. Excl GST.</p></div></div><div id="decodedChart" class="chart"></div></div>
+      <div class="card"><div class="card-head"><div><h3>Where it flows</h3><p class="small muted">Provider &rarr; what you pay for &rarr; who</p></div></div><div id="sankeyChart" class="chart"></div></div>
+    </div>
 
     <div class="card" style="margin-top:20px">
       <div class="card-head">
@@ -50,6 +59,7 @@
     <div class="card notes hidden" id="notesTeaser" style="margin-top:20px"><h3>Our expert has notes on your bills</h3>
       <div id="notesTitles" style="margin-top:10px"></div>
       <a class="btn sm" href="/register?next=/dashboard" style="margin-top:14px">Create a free account to read them</a></div>
+    <div class="card facts hidden" id="factsCard" style="margin-top:20px"><div class="card-head"><div><h3>Did you know?</h3><p class="small muted">How these bills actually work.</p></div></div><div class="facts-grid" id="factsList"></div></div>
     <div class="card notes hidden" id="notesFull" style="margin-top:20px"><div class="card-head"><div><h3>Our expert's take</h3><p class="small muted">Written from the bills and the current plans on each provider's website.</p></div></div><div class="notes-grid" id="notesList"></div></div>
 
     <h2 style="margin:48px 0 6px">What we noticed</h2>
