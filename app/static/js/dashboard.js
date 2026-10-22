@@ -119,6 +119,12 @@
       '<ul class="gains">' + (sw.roaming && sw.roaming.saving_year > 0 ? '<li>Roaming about ' + money(sw.roaming.saving_year) + '/yr cheaper (' + sw.roaming.days_other + ' days at $' + sw.roaming.rate + '/day' + (sw.roaming.days_au ? ', Australia free' : '') + ')</li>' : '') + sw.gains.slice(0, 3).map(g => '<li>' + esc(g) + '</li>').join('') + '</ul></div>';
     $('toSwitch').onclick = () => goTab('switch');
     countUp($('switchCard'));
+    const ch = sw.chamber;
+    let chEl = $('chamberCard');
+    if (!chEl) { chEl = document.createElement('div'); chEl.id = 'chamberCard'; chEl.className = 'card chamber'; $('switchCard').insertAdjacentElement('afterend', chEl); }
+    chEl.style.marginTop = '20px';
+    chEl.innerHTML = ch ? '<div class="ch-l"><div class="eyebrow">Member of a Chamber of Commerce?</div><h3>' + ch.mobile_pct + '% off mobile for life, ' + ch.mobile_free_months + ' months free' + (ch.fibre_pct ? ' \u2014 and ' + ch.fibre_pct + '% off fibre' : '') + '</h3><p class="small muted">2degrees\u2019 current offer for NZ Chambers of Commerce members. Applied to your like-for-like setup it comes to <b>' + money(ch.month) + '/mth</b>, about <b>' + money(ch.saving_year) + ' a year</b> less than today, and roughly <b>' + money(ch.first_year_saving) + '</b> in the first year with the free months.' + (ch.conditions ? ' <span class="tiny" style="display:inline">' + esc(ch.conditions) + '</span>' : '') + '</p></div><div class="ch-r"><b data-count="' + ch.first_year_saving + '">$0</b><span>first-year saving</span></div>' : '';
+    if (ch) countUp(chEl);
   }
 
   function renderPeopleCards() {
@@ -143,7 +149,7 @@
         '<td class="r num">' + money(l.price, 2) + '</td><td class="r num ' + (l.saving > 0.5 ? 'delta-down' : l.saving < -0.5 ? 'delta-up' : '') + '">' + (l.saving > 0.5 ? '−' + money(l.saving, 2) : l.saving < -0.5 ? '+' + money(-l.saving, 2) : 'same') + '</td></tr>').join('') +
       sw.services.map(s => '<tr><td class="who">' + esc(s.type) + '<span class="tiny">' + esc(s.address || '') + '</span></td><td>' + provBadge(s.carrier_code || '', s.carrier) + '<div class="small">' + esc(s.plan || '') + '</div></td><td class="r num">' + money(s.current, 2) + '</td><td>' + provBadge('2degrees', '2degrees') + '<div class="small">' + esc(s.rec) + '</div></td><td class="r num">' + money(s.price, 2) + '</td><td class="r num ' + (s.saving > 0.5 ? 'delta-down' : s.saving < -0.5 ? 'delta-up' : '') + '">' + (s.saving > 0.5 ? '−' + money(s.saving, 2) : s.saving < -0.5 ? '+' + money(-s.saving, 2) : 'same') + '</td></tr>').join('') +
       '<tr class="total"><td colspan="2"><b>Total plans + add-ons</b></td><td class="r num"><b>' + money(sw.current_month, 2) + '</b></td><td></td><td class="r num"><b>' + money(sw.future_month, 2) + '</b></td><td class="r num"><b>' + (sw.saving_month >= 0 ? '−' : '+') + money(Math.abs(sw.saving_month), 2) + '</b></td></tr>';
-    $('switchTotals').innerHTML = '<div class="eyebrow light">Per year</div><div class="sw-big">' + money(sw.saving_year) + '</div><p>like-for-like' + (sw.optimised_saving_year > sw.saving_year ? ', or <b>' + money(sw.optimised_saving_year) + '</b> right-sized' : '') + '</p>' +
+    $('switchTotals').innerHTML = '<div class="eyebrow light">Per year</div><div class="sw-big">' + money(sw.saving_year) + '</div><p>like-for-like' + (sw.optimised_saving_year > sw.saving_year ? ', or <b>' + money(sw.optimised_saving_year) + '</b> right-sized' : '') + (sw.chamber ? ', or <b>' + money(sw.chamber.saving_year) + '</b> as a Chamber of Commerce member (' + money(sw.chamber.first_year_saving) + ' in year one)' : '') + '</p>' +
       '<p class="small" style="margin-top:12px;opacity:.85">Unchanged by switching: usage extras (' + money(sw.extras_month, 2) + '/mth) and device repayments (' + money(A.kpi.devices_month, 2) + '/mth, ' + money(sw.hardware_balance) + ' remaining' + (sw.hardware_balance > 0 ? ' — a sign-on credit can clear this' : '') + ').</p>' +
       '<a class="btn white" href="/offer" style="margin-top:16px">Make me an offer</a>';
     $('portingList').innerHTML = sw.porting.have.map(h => '<div class="port ok">✓ ' + esc(h) + ' <span class="tiny" style="display:inline">on your bills</span></div>').join('') + sw.porting.need.map(h => '<div class="port need">○ ' + esc(h) + '</div>').join('');

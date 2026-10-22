@@ -106,6 +106,11 @@ def build_xlsx(email):
             _money(ws2.cell(row=ws2.max_row, column=2))
     for n in learning.notes_for(email):
         ws2.append([f"{'Did you know' if n.get('kind') == 'fact' else 'Expert note'}: {n['title']}", n["body"]])
+    if sw.get("chamber"):
+        ch = sw["chamber"]
+        ws2.append(["Chambers of Commerce member pricing", f"{ch['mobile_pct']}% off mobile for life + {ch['mobile_free_months']} months free"
+                    f" (fibre {ch['fibre_pct']}% off): {ch['month']:.2f}/mth, saving {ch['saving_year']:.2f}/yr,"
+                    f" first-year saving {ch['first_year_saving']:.2f}"])
     if sw.get("roaming"):
         r = sw["roaming"]
         ws2.append(["Roaming now vs 2degrees (per month)", f"{r['now_month']:.2f} now vs ~{r['future_month']:.2f} on 2degrees"

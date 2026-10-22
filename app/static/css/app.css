@@ -403,3 +403,9 @@ table.data tr.total td { border-top: 2px solid var(--line); background: var(--bg
 .gains .val { color: var(--blue-d); font-weight: 700; }
 .gains li.roam { background: var(--orange-l); border-radius: 10px; padding: 10px 12px; }
 .gains li.roam::before { display: none; }
+
+.card.chamber { display: grid; grid-template-columns: 1fr auto; gap: 24px; align-items: center; border-left: 4px solid var(--blue); }
+.card.chamber .ch-r { text-align: center; background: var(--blue-l); border-radius: 14px; padding: 16px 22px; }
+.card.chamber .ch-r b { display: block; font-size: 30px; font-weight: 800; color: var(--navy); letter-spacing: -0.03em; }
+.card.chamber .ch-r span { font-size: 12px; color: var(--ink-2); }
+@media (max-width: 640px) { .card.chamber { grid-template-columns: 1fr; } }

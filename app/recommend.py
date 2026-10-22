@@ -114,8 +114,11 @@ def benefits(provider=None, category=None):
 def daily_roaming_rate(provider):
     """Headline daily roaming price for a provider, from the researched benefits (fallback to known rates)."""
     for b in benefits(provider, "roaming"):
-        m = re.search(r"\$\s?(\d+(?:\.\d+)?)\s*(?:/|per|a)\s*day", f"{b['value']} {b['title']} {b['detail']}", re.I)
-        if m:
+        text = f"{b['value']} {b['title']}"
+        if re.search(r"australia|aussie", text, re.I):
+            continue
+        m = re.search(r"\$\s?(\d+(?:\.\d+)?)\s*(?:/|per|a)\s*day", text, re.I)
+        if m and float(m.group(1)) > 0:
             return float(m.group(1))
     return ROAM_FALLBACK.get(provider, 8.0)
 
@@ -145,6 +148,27 @@ def roaming_comparison(lines, n_months):
             "saving_year": round((spend - future) / n_months * 12, 2), "rate": rate}
 
 
+def chamber_offer():
+    """Chambers of Commerce member pricing from the research (mobile % off for life, months free; fibre likewise)."""
+    out = {"mobile_pct": 15, "mobile_free_months": 3, "fibre_pct": 10, "fibre_free_months": 3, "source": None}
+    for b in benefits("2degrees", "discount"):
+        title = (b["title"] or "").lower()
+        if "chamber" not in title or re.search(r"wireless|power", title):
+            continue
+        text = f"{b['value']} {b['detail']}".lower()
+        pct = re.search(r"(\d+)\s*%\s*off", text)
+        free = re.search(r"(\d+)\s*months?\s*free", text)
+        key = "fibre" if re.search(r"fibre|broadband", title) else "mobile"
+        if pct:
+            out[f"{key}_pct"] = int(pct.group(1))
+        if free:
+            out[f"{key}_free_months"] = int(free.group(1))
+        out["source"] = out["source"] or b["source_url"]
+        if key == "mobile":
+            out["conditions"] = (b["conditions"] or "")[:200]
+    return out
+
+
 def gains_list():
     """What a customer gains on 2degrees, from the researched benefits; falls back to the known basics."""
     rows = benefits("2degrees")
@@ -160,6 +184,19 @@ def gains_list():
             "Daily roaming in Australia at no extra cost; $8/day in 100+ other countries",
             "Unused data carries over for up to 12 months on capped plans")]
     return out
+
+
+def _chamber_scenario(out_lines, out_services, cur_m):
+    """What the like-for-like 2degrees setup costs for a Chambers of Commerce member."""
+    ch = chamber_offer()
+    mobile = sum(l["price"] for l in out_lines)
+    fibre = sum(s["price"] for s in out_services if "fibre" in (s["rec"] or "").lower())
+    wireless = sum(s["price"] for s in out_services if "fibre" not in (s["rec"] or "").lower())
+    month = mobile * (1 - ch["mobile_pct"] / 100) + fibre * (1 - ch["fibre_pct"] / 100) + wireless
+    first_year = month * 12 - mobile * (1 - ch["mobile_pct"] / 100) * ch["mobile_free_months"] \
+        - fibre * (1 - ch["fibre_pct"] / 100) * ch["fibre_free_months"]
+    return {**ch, "month": round(month, 2), "saving_year": round((cur_m - month) * 12, 2),
+            "first_year_total": round(first_year, 2), "first_year_saving": round(cur_m * 12 - first_year, 2)}
 
 
 def switch_plan(lines, services, devices, n_months):
@@ -214,6 +251,7 @@ def switch_plan(lines, services, devices, n_months):
         "optimised_saving_year": round((cur_m - opt_lines - sum(s["price"] for s in out_services)) * 12, 2),
         "extras_month": round(extras_m, 2), "hardware_balance": round(hw_balance, 2), "roaming_au": roaming_au,
         "roaming": roaming_comparison(lines, n_months),
+        "chamber": _chamber_scenario(out_lines, out_services, cur_m),
         "benefits": gains_list(),
         "gains": [(b["title"] + (f" ({b['value']})" if b["value"] else "")) for b in gains_list()][:6]
                  + ["One bill, one account, one team price"],
