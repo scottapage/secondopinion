@@ -1,5 +1,6 @@
 (function () {
-  const { money, make, axisX, axisY, sparkline, SERIES, C, PROV, provColor, provBadge, scoreRing, countUp, initials } = SO;
+  const { money, make, axisX, axisY, sparkline, SERIES, C, PROV, provColor, provBadge, scoreRing, countUp, initials, ev } = SO;
+  const evL = (l, inner, amt) => ev(l.src, [l.number, amt != null ? amt : (l.src && l.src.total)], inner, (l.user || '') + ' · ' + l.display);
   const $ = (id) => document.getElementById(id);
   const esc = (s) => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   let A = null, tab = 'overview', heatMetric = 'spend', sortKey = 'avg', sortDir = -1, search = '';
@@ -135,7 +136,7 @@
       const n = monthsOf(l), extras = (l.roaming + l.usage + l.addon) / n;
       return '<div class="person" data-n="' + esc(l.number) + '"><div class="p-top"><div class="avatar" style="background:' + provColor(l.carrier_code) + '">' + esc(initials(l.label)) + '</div><div class="p-name"><b>' + esc(l.label) + '</b><span>' + esc(l.display) + '</span></div>' + provBadge(l.carrier_code, l.carrier) + '</div>' +
         '<div class="p-plan">' + esc(l.plan || 'Plan not shown') + (l.allowance_gb ? ' · ' + (l.allowance_gb === -1 ? 'unlimited' : l.allowance_gb + ' GB') : '') + '</div>' +
-        '<div class="p-row"><div class="p-cost"><b>' + money(l.avg, 2) + '</b><span>/mth</span></div>' + sparkline(l.spend, 90, 28, provColor(l.carrier_code)) + '</div>' +
+        '<div class="p-row"><div class="p-cost"><b>' + evL(l, money(l.avg, 2)) + '</b><span>/mth</span></div>' + sparkline(l.spend, 90, 28, provColor(l.carrier_code)) + '</div>' +
         '<div class="p-bar"><i style="width:' + (100 * l.avg / max) + '%;background:' + provColor(l.carrier_code) + '"></i></div>' +
         '<div class="p-foot">' + (l.avg_data_gb != null ? '<span>' + l.avg_data_gb + ' GB/mth</span>' : '') + (extras > 0.5 ? '<span class="warn">' + money(extras, 2) + ' extras</span>' : '') + l.flags.map(f => '<span class="flag ' + f.split(' ')[0] + '">' + esc(f) + '</span>').join('') + '</div></div>';
     }).join('');
@@ -146,10 +147,10 @@
   function renderSwitch() {
     const sw = A.switch;
     $('switchTable').innerHTML = '<tr><th>Service</th><th>Now</th><th class="r">$/mth</th><th>On 2degrees</th><th class="r">$/mth</th><th class="r">Change</th></tr>' +
-      sw.lines.map(l => '<tr><td class="who">' + esc(l.user || l.display) + '<span class="tiny">' + esc(l.display) + '</span></td><td>' + provBadge(l.carrier_code, l.carrier) + '<div class="small">' + esc(l.plan || '') + '</div></td><td class="r num">' + money(l.current, 2) + '</td>' +
+      sw.lines.map(l => { const al = A.lines.find(x => x.number === l.number) || {}; return '<tr><td class="who">' + esc(l.user || l.display) + '<span class="tiny">' + esc(l.display) + '</span></td><td>' + provBadge(l.carrier_code, l.carrier) + '<div class="small">' + esc(l.plan || '') + '</div></td><td class="r num">' + ev(al.src, [l.number, al.plan_cost], money(l.current, 2), (l.user || '') + ' · ' + l.display) + '</td>' +
         '<td>' + provBadge('2degrees', '2degrees') + '<div class="small">' + esc(l.rec) + (l.role ? ' <span class="tiny" style="display:inline">(' + esc(l.role) + ')</span>' : '') + '</div><div class="tiny">' + esc(l.why) + (l.alt ? ' \u00b7 or ' + esc(l.alt) + ' at ' + money(l.alt_price) : '') + '</div></td>' +
-        '<td class="r num">' + money(l.price, 2) + '</td><td class="r num ' + (l.saving > 0.5 ? 'delta-down' : l.saving < -0.5 ? 'delta-up' : '') + '">' + (l.saving > 0.5 ? '−' + money(l.saving, 2) : l.saving < -0.5 ? '+' + money(-l.saving, 2) : 'same') + '</td></tr>').join('') +
-      sw.services.map(s => '<tr><td class="who">' + esc(s.type) + '<span class="tiny">' + esc(s.address || '') + '</span></td><td>' + provBadge(s.carrier_code || '', s.carrier) + '<div class="small">' + esc(s.plan || '') + '</div></td><td class="r num">' + money(s.current, 2) + '</td><td>' + provBadge('2degrees', '2degrees') + '<div class="small">' + esc(s.rec) + '</div>' + (s.promo ? '<div class="tiny promo">' + esc(s.promo.text) + ' \u2014 saves ' + money(s.promo.saving_year) + ' in year one</div>' : '') + '</td><td class="r num">' + money(s.price, 2) + '</td><td class="r num ' + (s.saving > 0.5 ? 'delta-down' : s.saving < -0.5 ? 'delta-up' : '') + '">' + (s.saving > 0.5 ? '−' + money(s.saving, 2) : s.saving < -0.5 ? '+' + money(-s.saving, 2) : 'same') + '</td></tr>').join('') +
+        '<td class="r num">' + money(l.price, 2) + '</td><td class="r num ' + (l.saving > 0.5 ? 'delta-down' : l.saving < -0.5 ? 'delta-up' : '') + '">' + (l.saving > 0.5 ? '−' + money(l.saving, 2) : l.saving < -0.5 ? '+' + money(-l.saving, 2) : 'same') + '</td></tr>'; }).join('') +
+      sw.services.map(s => { const as = (A.services || []).find(x => x.address === s.address && x.type === s.type) || {}; return '<tr><td class="who">' + esc(s.type) + '<span class="tiny">' + esc(s.address || '') + '</span></td><td>' + provBadge(s.carrier_code || '', s.carrier) + '<div class="small">' + esc(s.plan || '') + '</div></td><td class="r num">' + ev(as.src, [as.src && as.src.amount], money(s.current, 2), s.address || s.type) + '</td><td>' + provBadge('2degrees', '2degrees') + '<div class="small">' + esc(s.rec) + '</div>' + (s.promo ? '<div class="tiny promo">' + esc(s.promo.text) + ' \u2014 saves ' + money(s.promo.saving_year) + ' in year one</div>' : '') + '</td><td class="r num">' + money(s.price, 2) + '</td><td class="r num ' + (s.saving > 0.5 ? 'delta-down' : s.saving < -0.5 ? 'delta-up' : '') + '">' + (s.saving > 0.5 ? '−' + money(s.saving, 2) : s.saving < -0.5 ? '+' + money(-s.saving, 2) : 'same') + '</td></tr>'; }).join('') +
       '<tr class="total"><td colspan="2"><b>Total plans + add-ons</b></td><td class="r num"><b>' + money(sw.current_month, 2) + '</b></td><td></td><td class="r num"><b>' + money(sw.future_month, 2) + '</b></td><td class="r num"><b>' + (sw.saving_month >= 0 ? '−' : '+') + money(Math.abs(sw.saving_month), 2) + '</b></td></tr>';
     $('switchTotals').innerHTML = '<div class="eyebrow light">Per year</div><div class="sw-big">' + money(sw.saving_year) + '</div><p>like-for-like' + (sw.optimised_saving_year > sw.saving_year ? ', or <b>' + money(sw.optimised_saving_year) + '</b> right-sized' : '') + (sw.chamber ? ', or <b>' + money(sw.chamber.saving_year) + '</b> as a Chamber of Commerce member (' + money(sw.chamber.first_year_saving) + ' in year one)' : '') + '</p>' + (sw.promos ? '<p class="small" style="margin-top:10px"><b>Current promotions:</b> ' + sw.promos.items.map(i => esc(i.plan) + ' \u2014 ' + esc(i.text)).join('; ') + '. First year <b>' + money(sw.promos.first_year_total) + '</b>, ' + money(sw.promos.first_year_saving) + ' less than today.</p>' : '') +
       '<p class="small" style="margin-top:12px;opacity:.85">Unchanged by switching: usage extras (' + money(sw.extras_month, 2) + '/mth) and device repayments (' + money(A.kpi.devices_month, 2) + '/mth, ' + money(sw.hardware_balance) + ' remaining' + (sw.hardware_balance > 0 ? ' — a sign-on credit can clear this' : '') + ').</p>' +
@@ -173,7 +174,7 @@
       series: S.map(s => ({ name: (s.address || s.type).slice(0, 30), type: 'bar', stack: 's', barMaxWidth: 46, data: s.spend }))
     });
     $('bbTable').innerHTML = '<tr><th>Service</th><th>Provider</th><th>Address</th><th>Plan</th><th class="r">Avg / month</th></tr>' +
-      S.map(s => '<tr><td>' + esc(s.type) + '</td><td>' + provBadge(s.carrier_code, s.carrier) + '</td><td>' + esc(s.address || '-') + '</td><td>' + esc(s.plan || '-') + (s.speed ? '<span class="tiny">' + esc(s.speed) + '</span>' : '') + '</td><td class="r num"><b>' + money(s.avg, 2) + '</b></td></tr>').join('');
+      S.map(s => '<tr><td>' + esc(s.type) + '</td><td>' + provBadge(s.carrier_code, s.carrier) + '</td><td>' + esc(s.address || '-') + '</td><td>' + esc(s.plan || '-') + (s.speed ? '<span class="tiny">' + esc(s.speed) + '</span>' : '') + '</td><td class="r num"><b>' + ev(s.src, [s.src && s.src.amount], money(s.avg, 2), s.address || s.type) + '</b></td></tr>').join('');
   }
 
   // ---- People & lines
@@ -211,7 +212,7 @@
     rows.sort((a, b) => { const x = a[sortKey], y = b[sortKey]; return (typeof x === 'string' || typeof y === 'string' ? String(x || '').localeCompare(String(y || '')) : (x || 0) - (y || 0)) * sortDir; });
     $('lineTable').innerHTML = '<tr>' + cols.map(c => '<th class="' + (c[2] || '') + (c[0] !== 'trend' && c[0] !== 'flags' ? ' sort' : '') + '" data-k="' + c[0] + '">' + c[1] + (sortKey === c[0] ? (sortDir < 0 ? ' ↓' : ' ↑') : '') + '</th>').join('') + '</tr>' +
       rows.map(l => '<tr class="click" data-n="' + esc(l.number) + '"><td class="who">' + esc(l.user || l.display) + '<span class="tiny">' + esc(l.display) + '</span></td><td>' + provBadge(l.carrier_code, l.carrier) + '<span class="tiny">' + esc(l.account || '') + '</span></td><td>' + esc(l.plan || '-') + '</td>' +
-        '<td class="r num"><b>' + money(l.avg, 2) + '</b></td><td>' + sparkline(l.spend) + '</td>' +
+        '<td class="r num"><b>' + evL(l, money(l.avg, 2)) + '</b></td><td>' + sparkline(l.spend) + '</td>' +
         '<td class="r num">' + (l.avg_data_gb == null ? '-' : l.avg_data_gb + ' GB') + (l.allowance_gb ? '<span class="tiny">of ' + (l.allowance_gb === -1 ? 'unlimited' : l.allowance_gb + ' GB') + '</span>' : '') + '</td>' +
         '<td class="r num">' + (l.extras > 0.005 ? money(l.extras, 2) : '-') + '</td>' +
         '<td>' + l.flags.map(f => '<span class="flag ' + f.split(' ')[0] + '">' + f + '</span>').join('') + '</td></tr>').join('');
@@ -223,8 +224,8 @@
     if (!l) return;
     const n = monthsOf(l);
     const sw = (A.switch.lines || []).find(x => x.number === l.number);
-    $('drawerBody').innerHTML = '<div class="eyebrow" style="margin-bottom:6px">' + provBadge(l.carrier_code, l.carrier) + ' · ' + esc(l.display) + (l.account ? ' · account ' + esc(l.account) : '') + '</div><h2>' + esc(l.user || l.display) + '</h2><p class="muted">' + esc(l.plan || 'Plan not shown') + '</p>' +
-      '<div class="mini-kpis"><div><b>' + money(l.avg, 2) + '</b><span>avg per month</span></div><div><b>' + (l.avg_data_gb == null ? '-' : l.avg_data_gb + ' GB') + '</b><span>data per month</span></div><div><b>' + money((l.roaming + l.usage + l.addon) / n, 2) + '</b><span>extras per month</span></div></div>' +
+    $('drawerBody').innerHTML = '<div class="eyebrow" style="margin-bottom:6px">' + provBadge(l.carrier_code, l.carrier) + ' · ' + esc(l.display) + (l.account ? ' · account ' + esc(l.account) : '') + '</div><h2>' + esc(l.user || l.display) + '</h2><p class="muted">' + esc(l.plan || 'Plan not shown') + (l.plan_cost ? ' · ' + evL(l, money(l.plan_cost, 2), l.plan_cost) + '/mth plan' : '') + '</p>' +
+      '<div class="mini-kpis"><div><b>' + evL(l, money(l.avg, 2)) + '</b><span>avg per month</span></div><div><b>' + (l.avg_data_gb == null ? '-' : l.avg_data_gb + ' GB') + '</b><span>data per month</span></div><div><b>' + money((l.roaming + l.usage + l.addon) / n, 2) + '</b><span>extras per month</span></div></div>' +
       (l.flags.length ? '<p>' + l.flags.map(f => '<span class="flag ' + f.split(' ')[0] + '">' + f + '</span>').join('') + '</p>' : '') +
       (sw ? '<div class="card flat" style="margin-top:14px;padding:14px"><b>On 2degrees:</b> ' + esc(sw.rec) + (sw.role ? ' (' + esc(sw.role) + ')' : '') + ' at ' + money(sw.price, 2) + '/mth vs ' + money(sw.current, 2) + ' now' + (sw.alt ? ' — or ' + esc(sw.alt) + ' at ' + money(sw.alt_price) + ' if usage fits' : '') + '<div class="tiny">' + esc(sw.why) + '</div></div>' : '') +
       '<h3 style="margin-top:18px">Cost by month</h3><div id="dSpend" class="chart short"></div><h3 style="margin-top:10px">Data by month</h3><div id="dData" class="chart short"></div>';
@@ -270,7 +271,7 @@
   function renderSavings() {
     $('insights').innerHTML = A.insights.map(i => '<div class="insight"><div class="k">' + esc(i.title) + '</div><div class="h">' + esc(i.headline) + '</div><div class="b">' + esc(i.body) + '</div>' +
       (i.saving > 0 ? '<div class="save">Save up to ' + money(i.saving * 12) + ' a year</div>' : '') +
-      (i.items.length ? '<ul>' + i.items.map(it => '<li><span><b>' + esc(it.label) + '</b><br><span class="d">' + esc(it.number) + ' · ' + esc(it.detail || '') + '</span></span><span class="num" style="text-align:right;white-space:nowrap">' + esc(it.value) + '</span></li>').join('') + '</ul>' : '') + '</div>').join('');
+      (i.items.length ? '<ul>' + i.items.map(it => '<li><span><b>' + esc(it.label) + '</b><br><span class="d">' + esc(it.number) + ' · ' + esc(it.detail || '') + '</span></span><span class="num" style="text-align:right;white-space:nowrap">' + ev(it.src, it.terms, esc(it.value), it.label) + '</span></li>').join('') + '</ul>' : '') + '</div>').join('');
   }
 
   // ---- Hardware
@@ -288,7 +289,7 @@
       yAxis: { type: 'category', data: withMonths.map(x => (x.number || '') + ' ' + (x.description || '').slice(0, 26)), axisTick: { show: false }, axisLine: { show: false }, axisLabel: { color: C.ink } },
       series: [{ type: 'bar', data: withMonths.map(x => x.months_left), itemStyle: { color: C.navy, borderRadius: [0, 6, 6, 0] }, barMaxWidth: 20, label: { show: true, position: 'right', formatter: p => { const end = new Date(now.getFullYear(), now.getMonth() + p.value, 1); return p.value + ' mths · ' + end.toLocaleDateString('en-NZ', { month: 'short', year: '2-digit' }); }, color: C.ink2 } }]
     });
-    $('hwTable').innerHTML = '<tr><th>Line</th><th>Device</th><th class="r">Monthly</th><th class="r">Payments left</th><th class="r">Balance</th></tr>' + d.map(x => '<tr><td>' + esc(x.number) + '</td><td>' + esc(x.description) + '</td><td class="r num">' + money(x.monthly, 2) + '</td><td class="r">' + (x.months_left == null ? '-' : x.months_left) + '</td><td class="r num">' + money(x.balance) + '</td></tr>').join('');
+    $('hwTable').innerHTML = '<tr><th>Line</th><th>Device</th><th class="r">Monthly</th><th class="r">Payments left</th><th class="r">Balance</th></tr>' + d.map(x => '<tr><td>' + esc(x.number) + '</td><td>' + esc(x.description) + '</td><td class="r num">' + ev(x.src, [x.src && x.src.number, x.monthly], money(x.monthly, 2), x.description) + '</td><td class="r">' + (x.months_left == null ? '-' : x.months_left) + '</td><td class="r num">' + money(x.balance) + '</td></tr>').join('');
   }
 
   // ---- Bills

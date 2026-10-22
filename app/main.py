@@ -14,7 +14,7 @@ from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.sessions import SessionMiddleware
 
-from . import analysis, catalogue, chat, db, dossier, example, extract, ingest, learning, mailer, notify, security, visitors
+from . import analysis, catalogue, chat, db, dossier, evidence, example, extract, ingest, learning, mailer, notify, security, visitors
 from .config import (BASE_URL, CARRIERS, CHART_DIR, DATA_DIR, MAX_UPLOAD_MB, SECRET_KEY, SECRET_SETTINGS, SETUP_TOKEN,
                      SUPERADMIN_EMAIL, carrier_label)
 from .tpl import render
@@ -314,12 +314,46 @@ def chart_image(name: str):
     return FileResponse(p, media_type="image/png", headers={"Cache-Control": "public, max-age=31536000"})
 
 
-@app.get("/invoice/{invoice_id}.pdf")
-def invoice_pdf(request: Request, invoice_id: int):
+def _my_invoice(request, invoice_id):
+    """The bill, if this visitor may see it: its owner, the superadmin, or the browser session that uploaded it."""
     inv = db.q1("SELECT * FROM invoices WHERE id=?", (invoice_id,))
     email = current_email(request)
-    if not inv or not (is_admin(request) or (email and inv["owner_email"] == email)):
+    if not inv or inv["path"] == "-" or not (is_admin(request) or (email and inv["owner_email"] == email) or
+                                            (inv["owner_email"] is None and inv["session_id"] == request.session.get("sid"))):
         raise HTTPException(404)
+    return inv
+
+
+@app.get("/bill/{invoice_id}", response_class=HTMLResponse)
+def bill_viewer(request: Request, invoice_id: int, q: str = "", label: str = ""):
+    """Click any number on the analysis and see it highlighted on the original bill."""
+    inv = _my_invoice(request, invoice_id)
+    terms = [t.strip() for t in q.split(",") if t.strip()][:6]
+    hits = evidence.find(inv, terms)
+    found = {}
+    for h in hits:
+        found.setdefault(h["term"], h["page"])
+    # Open on the page where the most terms were found together
+    pages_hit = [h["page"] for h in hits]
+    first = max(set(pages_hit), key=pages_hit.count) if pages_hit else 0
+    db.log_event("evidence_viewed", current_email(request), sid(request), invoice_id=invoice_id, terms=len(terms),
+                 found=len(found))
+    return page(request, "bill.html", inv=inv, terms=terms, hits=hits, found=found, first=first, label=label[:120],
+                pages=evidence.page_count(inv))
+
+
+@app.get("/bill/{invoice_id}/page/{page_no}.png")
+def bill_page_png(request: Request, invoice_id: int, page_no: int):
+    inv = _my_invoice(request, invoice_id)
+    path = evidence.page_png(inv, page_no)
+    if not path:
+        raise HTTPException(404)
+    return FileResponse(path, media_type="image/png", headers={"Cache-Control": "private, max-age=86400"})
+
+
+@app.get("/invoice/{invoice_id}.pdf")
+def invoice_pdf(request: Request, invoice_id: int):
+    inv = _my_invoice(request, invoice_id)
     return FileResponse(inv["path"], media_type="application/pdf", filename=inv["filename"],
                         content_disposition_type="inline")
 

@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}On your bill - SecondOpinion{% endblock %}
+{% block body %}
+<div class="bv-top"><div class="wrap">
+  <div>
+    <div class="eyebrow" style="margin:0">Straight from your {{ inv.carrier|carrier }} bill{% if inv.period_month %} &middot; {{ inv.period_month }}{% endif %}</div>
+    <div class="bv-terms">{% if label %}<b>{{ label }}</b>{% endif %}
+      {% for t in terms %}<span class="bv-chip {{ 'hit' if t in found else 'miss' }}">{{ t }}{% if t in found %} &middot; page {{ found[t] + 1 }}{% else %} &middot; not found as printed{% endif %}</span>{% endfor %}
+    </div>
+  </div>
+  <div class="bv-actions"><a class="btn sm ghost" href="/invoice/{{ inv.id }}.pdf" target="_blank">Open the PDF</a><a class="btn sm" href="javascript:history.length>1?history.back():location.assign('/dashboard')">Back</a></div>
+</div></div>
+<div class="bv-pages" id="pages" data-n="{{ pages }}" data-id="{{ inv.id }}">
+  {% for p in range(pages) %}<div class="bv-page" id="p{{ p }}"><img src="/bill/{{ inv.id }}/page/{{ p }}.png" loading="{{ 'eager' if p == first else 'lazy' }}" alt="Page {{ p + 1 }}">
+    {% for h in hits if h.page == p %}<div class="bv-hl" style="left:{{ h.x - 0.6 }}%;top:{{ h.y - 0.5 }}%;width:{{ h.w + 1.2 }}%;height:{{ h.h + 1 }}%" title="{{ h.text }}{{ ' (' ~ h.note ~ ')' if h.note }}"></div>{% endfor %}
+    <div class="bv-pno">Page {{ p + 1 }} of {{ pages }}</div></div>{% endfor %}
+</div>
+{% if not hits %}<p class="muted" style="text-align:center;padding:20px">We couldn't find that figure printed exactly like this (bills often show it with GST, or split across lines) - but this is the bill it came from.</p>{% endif %}
+{% endblock %}
+{% block scripts %}<script>
+(function () {
+  const first = document.getElementById('p{{ first }}');
+  if (first) setTimeout(() => { const hl = first.querySelector('.bv-hl'); (hl || first).scrollIntoView({ behavior: 'smooth', block: 'center' }); }, 250);
+})();
+</script>{% endblock %}

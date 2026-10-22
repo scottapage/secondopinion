@@ -1,5 +1,5 @@
 (function () {
-  const { money, make, axisX, axisY, sparkline, SERIES, C, provColor, provBadge, scoreRing, countUp } = SO;
+  const { money, make, axisX, axisY, sparkline, SERIES, C, provColor, provBadge, scoreRing, countUp, ev } = SO;
   const $ = (id) => document.getElementById(id);
   const TICK = '<svg class="tick" viewBox="0 0 20 20"><circle cx="10" cy="10" r="10" fill="#E3F4EC"/><path d="M6 10.5l2.6 2.6L14 7.6" fill="none" stroke="#00875A" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
   const WARN = '<svg class="tick" viewBox="0 0 20 20"><circle cx="10" cy="10" r="10" fill="#FEF2E5"/><path d="M10 5.5v5.5M10 14v.3" stroke="#F1600D" stroke-width="2.2" stroke-linecap="round"/></svg>';
@@ -66,7 +66,7 @@
 
     if (bbOnly) {
       document.querySelectorAll('.mobile-only').forEach(el => el.classList.add('hidden'));
-      $('lineTable').innerHTML = '<tr><th>Service</th><th>Provider</th><th>Address</th><th>Plan</th><th class="r">Avg / month</th></tr>' + (A.services || []).map(s => '<tr><td>' + esc(s.type) + '</td><td>' + provBadge(s.carrier_code, s.carrier) + '</td><td>' + esc(s.address || '-') + '</td><td>' + esc(s.plan || '-') + (s.speed ? '<span class="tiny">' + esc(s.speed) + '</span>' : '') + '</td><td class="r num"><b>' + money(s.avg, 2) + '</b></td></tr>').join('');
+      $('lineTable').innerHTML = '<tr><th>Service</th><th>Provider</th><th>Address</th><th>Plan</th><th class="r">Avg / month</th></tr>' + (A.services || []).map(s => '<tr><td>' + esc(s.type) + '</td><td>' + provBadge(s.carrier_code, s.carrier) + '</td><td>' + esc(s.address || '-') + '</td><td>' + esc(s.plan || '-') + (s.speed ? '<span class="tiny">' + esc(s.speed) + '</span>' : '') + '</td><td class="r num"><b>' + ev(s.src, [s.src && s.src.amount], money(s.avg, 2), s.address || s.type) + '</b></td></tr>').join('');
       $('lineTableTitle').textContent = 'Your broadband';
     } else {
       A.lines.slice(0, Math.min(6, A.lines.length)).forEach(l => selected.add(l.number));
@@ -138,7 +138,7 @@
     $('lineTable').innerHTML = head + A.lines.map(l =>
       '<tr><td class="who">' + esc(l.user || l.display) + '<span class="tiny">' + esc(l.display) + '</span></td><td>' + provBadge(l.carrier_code, l.carrier) + '</td>' +
       '<td>' + esc(l.plan || '-') + '</td>' +
-      '<td class="r num"><div class="bar-cell" style="justify-content:flex-end"><div class="bar" style="width:' + Math.max(4, 90 * l.avg / max) + 'px"></div><b>' + money(l.avg, 2) + '</b></div></td>' +
+      '<td class="r num"><div class="bar-cell" style="justify-content:flex-end"><div class="bar" style="width:' + Math.max(4, 90 * l.avg / max) + 'px"></div><b>' + ev(l.src, [l.number, l.src && l.src.total], money(l.avg, 2), (l.user || '') + ' · ' + l.display) + '</b></div></td>' +
       (A.months.length > 1 ? '<td>' + sparkline(l.spend) + '</td>' : '') +
       '<td class="r num">' + (l.avg_data_gb == null ? '-' : l.avg_data_gb + ' GB') + '</td></tr>').join('');
   }
@@ -165,7 +165,7 @@
     if (!A.teaser) {
       $('insights').innerHTML = A.insights.map(i => '<div class="insight"><div class="k">' + esc(i.title) + '</div><div class="h">' + esc(i.headline) + '</div><div class="b">' + esc(i.body) + '</div>' +
         (i.saving > 0 ? '<div class="save">Save up to ' + money(i.saving * 12) + ' a year</div>' : '') +
-        (i.items.length ? '<ul>' + i.items.map(it => '<li><span><b>' + esc(it.label) + '</b><br><span class="d">' + esc(it.detail || '') + '</span></span><span class="num" style="text-align:right">' + esc(it.value) + '</span></li>').join('') + '</ul>' : '') + '</div>').join('');
+        (i.items.length ? '<ul>' + i.items.map(it => '<li><span><b>' + esc(it.label) + '</b><br><span class="d">' + esc(it.detail || '') + '</span></span><span class="num" style="text-align:right">' + ev(it.src, it.terms, esc(it.value), it.label) + '</span></li>').join('') + '</ul>' : '') + '</div>').join('');
       return;
     }
     const fake = ['Line ending 0101 · $65.00/mth', 'Line ending 0102 · 18% of allowance', 'Line ending 0104 · $27.40/mth extras'];

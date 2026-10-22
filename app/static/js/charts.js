@@ -80,7 +80,13 @@ window.SO = (function () {
     });
     root.querySelectorAll('.ring').forEach(r => requestAnimationFrame(() => r.style.strokeDashoffset = getComputedStyle(r).getPropertyValue('--target')));
   }
+  // Link a figure to the bill it came from (the viewer highlights the terms on the PDF page)
+  const ev = (src, terms, inner, label) => {
+    if (!src || !src.invoice_id || window.SO_EXAMPLE) return inner;
+    const q = (terms || []).filter(t => t != null && t !== '').map(t => typeof t === 'number' ? t.toFixed(2) : String(t)).join(',');
+    return '<a class="ev" href="/bill/' + src.invoice_id + '?q=' + encodeURIComponent(q) + (label ? '&label=' + encodeURIComponent(label) : '') + '" title="See it on your bill">' + inner + '</a>';
+  };
   const initials = (name) => (name || '?').split(/\s+/).filter(Boolean).slice(0, 2).map(w => w[0].toUpperCase()).join('') || '?';
 
-  return { C, SERIES, CAT, money, make, axisX, axisY, sparkline, fromSpec, base, PROV, provColor, provName, provBadge, scoreRing, countUp, initials };
+  return { C, SERIES, CAT, money, make, axisX, axisY, sparkline, fromSpec, base, PROV, provColor, provName, provBadge, scoreRing, countUp, initials, ev };
 })();

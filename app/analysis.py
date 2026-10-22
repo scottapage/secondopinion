@@ -108,9 +108,10 @@ def build(email=None, session_id=None, account=None):
             "account": l["account_number"], "account_name": acct_name.get(l["account_number"]),
             "months": {}, "data": {}, "voice": {}, "allowance": None,
             "roaming": 0.0, "usage": 0.0, "addon": 0.0, "hardware": 0.0, "plan_cost": None, "plan_month": {},
-            "roaming_items": [],
+            "roaming_items": [], "src": None,
         })
         m = l["period_month"]
+        p["src"] = {"invoice_id": l["invoice_id"], "month": m, "total": l["total"], "plan_cost": l["plan_cost"]}
         p["user"] = l["user_name"] or p["user"]
         p["plan"] = l["plan_name"] or p["plan"]
         p["plan_cost"] = l["plan_cost"] if l["plan_cost"] else p["plan_cost"]
@@ -292,7 +293,7 @@ def _line_json(p, months):
         "avg_data_gb": None if p["avg_data"] is None else round(p["avg_data"] / 1024, 2),
         "util": None if p["util"] is None else round(p["util"], 2),
         "roaming": round(p["roaming"], 2), "usage": round(p["usage"], 2), "addon": round(p["addon"], 2),
-        "hardware": round(p["hardware"], 2), "flags": p["flags"],
+        "hardware": round(p["hardware"], 2), "flags": p["flags"], "src": p.get("src"),
     }
 
 
@@ -333,9 +334,18 @@ def _devices(devices, latest):
         if balance is None and months_left is not None and d["monthly_amount"]:
             balance = months_left * d["monthly_amount"]
         out.append({"number": fmt_number(d["number"] or ""), "description": d["description"],
-                    "monthly": d["monthly_amount"], "months_left": months_left, "balance": balance})
+                    "monthly": d["monthly_amount"], "months_left": months_left, "balance": balance,
+                    "src": {"invoice_id": d["invoice_id"], "amount": d["monthly_amount"], "number": d["number"]}})
     out.sort(key=lambda d: -(d["balance"] or 0))
     return out
+
+
+def _ev(p, amount=None):
+    """Source reference for an insight item: the bill and the figures to highlight on it."""
+    src = p.get("src")
+    if not src:
+        return {}
+    return {"src": src, "terms": [p["number"], amount if amount is not None else src.get("total")]}
 
 
 def _broadband_insight(services):
@@ -347,7 +357,8 @@ def _broadband_insight(services):
         diff = s["avg"] - (price or 0)
         saving += max(diff, 0)
         items.append({"label": s["address"] or s["type"], "number": s["carrier"],
-                      "value": fmt_money(s["avg"], 2) + "/mth",
+                      "value": fmt_money(s["avg"], 2) + "/mth", "src": s.get("src"),
+                      "terms": [s["src"]["amount"]] if s.get("src") else [],
                       "detail": f"{s['plan'] or s['type']} - 2degrees {name} is {fmt_money(price, 2)}"
                                 + (f" ({promo['text']})" if promo else "")})
     n = len(services)
@@ -379,7 +390,7 @@ def _insights(lines, devices, months, total_month, services=()):
                 " can't spot idle lines from it. A usage report from your carrier's business portal would show them.",
         "saving": round(sum(p["avg"] for p in idle), 2),
         "items": [{"label": p["label"], "number": p["display"], "value": fmt_money(p["avg"], 2) + "/mth",
-                   "detail": f"{fmt_data(p['avg_data'])} data avg"} for p in idle],
+                   "detail": f"{fmt_data(p['avg_data'])} data avg", **_ev(p)} for p in idle],
     })
 
     over = [p for p in lines if p["util"] is not None and p["util"] < 0.3 and (p["plan_cost"] or 0) > 0
@@ -392,10 +403,10 @@ def _insights(lines, devices, months, total_month, services=()):
     fit_saving = sum((p["plan_cost"] or 0) * 0.3 for p in over) + sum((p["usage_m"] + p["addon_net_m"]) * 0.7
                                                                        for p in under)
     items = [{"label": p["label"], "number": p["display"], "value": f"{round(p['util'] * 100)}% of allowance used",
-              "detail": f"{p['plan']} - consider a smaller plan"} for p in over]
+              "detail": f"{p['plan']} - consider a smaller plan", **_ev(p)} for p in over]
     items += [{"label": p["label"], "number": p["display"],
                "value": fmt_money(p["usage_m"] + p["addon_net_m"], 2) + "/mth extras",
-               "detail": f"{p['plan']} - a bigger plan may be cheaper"} for p in under]
+               "detail": f"{p['plan']} - a bigger plan may be cheaper", **_ev(p)} for p in under]
     out.append({
         "key": "plan_fit", "title": "Plan fit",
         "headline": f"{len(over) + len(under)} line{'s' if len(over) + len(under) != 1 else ''} on the wrong-size plan"
@@ -436,7 +447,8 @@ def _insights(lines, devices, months, total_month, services=()):
         "saving": round(sum(p["plan_cost"] - c["plan_cost"] for p, c in pricier), 2),
         "items": [{"label": p["label"], "number": p["display"],
                    "value": fmt_money(p["plan_cost"] - c["plan_cost"], 2) + "/mth more",
-                   "detail": f"{p['plan']} {fmt_money(p['plan_cost'], 2)} vs {c['plan']} {fmt_money(c['plan_cost'], 2)}"}
+                   "detail": f"{p['plan']} {fmt_money(p['plan_cost'], 2)} vs {c['plan']} {fmt_money(c['plan_cost'], 2)}",
+                   **_ev(p, p["plan_cost"])}
                   for p, c in pricier],
     })
 
@@ -450,7 +462,7 @@ def _insights(lines, devices, months, total_month, services=()):
                 " Most of this can be bundled into plans or controlled with spend caps.",
         "saving": round(leak_total * 0.5, 2),
         "items": [{"label": p["label"], "number": p["display"], "value": fmt_money(p["extras_m"], 2) + "/mth",
-                   "detail": ", ".join(f"{k} {fmt_money(v, 2)}" for k, v in
+                   **_ev(p), "detail": ", ".join(f"{k} {fmt_money(v, 2)}" for k, v in
                                        (("roaming", p["roaming_m"]), ("extras", p["usage_m"]),
                                         ("add-ons", p["addon_net_m"])) if v > 0.005)} for p in leak_lines[:12]],
     })

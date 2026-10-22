@@ -411,3 +411,22 @@ table.data tr.total td { border-top: 2px solid var(--line); background: var(--bg
 @media (max-width: 640px) { .card.chamber { grid-template-columns: 1fr; } }
 .p-name b { font-size: 15px; }
 .tiny.promo { color: #B5470A; font-weight: 600; }
+
+/* ---- Evidence: click a number, see it on the bill ---- */
+.ev { color: inherit; text-decoration: underline dotted var(--blue); text-underline-offset: 3px; text-decoration-thickness: 1.5px; cursor: zoom-in; }
+.ev:hover { color: var(--blue-d); text-decoration-style: solid; }
+.ev-hint { font-size: 12px; color: var(--ink-3); display: inline-flex; align-items: center; gap: 6px; }
+.ev-hint i { display: inline-block; width: 22px; border-bottom: 2px dotted var(--blue); height: 8px; }
+.bv-top { position: sticky; top: 58px; z-index: 20; background: #fff; border-bottom: 1px solid var(--line-2); box-shadow: 0 6px 20px rgba(29,41,46,.06); }
+.bv-top .wrap { display: flex; justify-content: space-between; align-items: center; gap: 16px; padding: 12px 20px; flex-wrap: wrap; }
+.bv-terms { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: 4px; font-size: 14px; }
+.bv-chip { font-size: 12px; padding: 3px 10px; border-radius: 999px; font-weight: 600; }
+.bv-chip.hit { background: var(--orange-l); color: #B5470A; }
+.bv-chip.miss { background: var(--bg-2); color: var(--ink-3); }
+.bv-actions { display: flex; gap: 8px; }
+.bv-pages { background: #E9EAEC; padding: 24px 12px 40px; min-height: 60vh; }
+.bv-page { position: relative; max-width: 900px; margin: 0 auto 18px; background: #fff; box-shadow: 0 4px 22px rgba(29,41,46,.14); border-radius: 4px; overflow: hidden; }
+.bv-page img { display: block; width: 100%; height: auto; }
+.bv-pno { position: absolute; right: 10px; bottom: 8px; font-size: 11px; color: var(--ink-3); background: rgba(255,255,255,.85); padding: 2px 8px; border-radius: 999px; }
+.bv-hl { position: absolute; border: 2.5px solid var(--orange); background: rgba(241, 96, 13, .16); border-radius: 5px; box-shadow: 0 0 0 6px rgba(241, 96, 13, .14); animation: ev-pulse 1.6s ease-in-out 3; }
+@keyframes ev-pulse { 0%, 100% { box-shadow: 0 0 0 6px rgba(241, 96, 13, .14); } 50% { box-shadow: 0 0 0 14px rgba(241, 96, 13, .05); } }
