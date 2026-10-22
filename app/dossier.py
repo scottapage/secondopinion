@@ -105,7 +105,13 @@ def build_xlsx(email):
         if isinstance(val, (int, float)) and "score" not in key.lower():
             _money(ws2.cell(row=ws2.max_row, column=2))
     for n in learning.notes_for(email):
-        ws2.append([f"Expert note: {n['title']}", n["body"]])
+        ws2.append([f"{'Did you know' if n.get('kind') == 'fact' else 'Expert note'}: {n['title']}", n["body"]])
+    if sw.get("roaming"):
+        r = sw["roaming"]
+        ws2.append(["Roaming now vs 2degrees (per month)", f"{r['now_month']:.2f} now vs ~{r['future_month']:.2f} on 2degrees"
+                    f" ({r['days_other']} days outside Australia at ${r['rate']:.0f}/day, {r['days_au']} days in Australia free)"])
+    for b in sw.get("benefits", []):
+        ws2.append([f"2degrees {b['category']}: {b['title']}", f"{b['value']} - {b['detail']} ({b['conditions']})".strip(" -")])
     _autosize(ws2, [38, 110])
     for row in ws2.iter_rows(min_row=2):
         row[1].alignment = Alignment(wrap_text=True, vertical="top")

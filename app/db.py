@@ -289,6 +289,20 @@ CREATE TABLE IF NOT EXISTS plan_catalogue (
     active INTEGER NOT NULL DEFAULT 1
 );
 
+-- Provider benefits beyond the plan price: roaming rates, included value, association discounts, support
+CREATE TABLE IF NOT EXISTS benefits (
+    id INTEGER PRIMARY KEY,
+    provider TEXT NOT NULL,
+    category TEXT NOT NULL,             -- roaming | included | discount | support | device | other
+    title TEXT NOT NULL,
+    detail TEXT,
+    value TEXT,                         -- e.g. "$8/day", "20% off", "300 min"
+    conditions TEXT,
+    source_url TEXT,
+    fetched_at REAL NOT NULL,
+    active INTEGER NOT NULL DEFAULT 1
+);
+
 CREATE TABLE IF NOT EXISTS settings (
     key TEXT PRIMARY KEY,
     value TEXT

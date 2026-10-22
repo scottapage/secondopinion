@@ -6,6 +6,17 @@
   {% if last_result %}<p class="tiny" style="margin-top:6px">Last run: {{ last_result }}</p>{% endif %}</div>
   <form method="post" action="/admin/catalogue/refresh"><button class="btn" {{ 'disabled' if state in ('1','running') }}>{{ 'Refreshing...' if state == 'running' else ('Queued' if state == '1' else 'Refresh now') }}</button></form>
 </div>
+<div class="card" id="benefits" style="margin-bottom:20px">
+  <div class="card-head"><div><h3>Benefits beyond price</h3><p class="small muted">Roaming rates, included value, association and Chamber discounts, support and device terms - researched from each provider's website. Used by the switch scenario, the expert reviewer and Ask AI.</p></div>
+    <form method="post" action="/admin/benefits/refresh"><button class="btn sm" {{ 'disabled' if bstate == '1' }}>{{ 'Researching...' if bstate == '1' else 'Research again' }}</button></form></div>
+  {% for prov in ['2degrees','one','spark'] %}
+  {% set items = brows|selectattr('provider','equalto',prov)|list %}
+  <details {{ 'open' if prov == '2degrees' }} style="border-top:1px solid #F1F1F2;padding:10px 0"><summary><b>{{ prov|carrier }}</b> <span class="small muted">{{ items|length }} items{% if bnotes[prov] %} &middot; read {{ bnotes[prov].at|dt }}{% if bnotes[prov].notes %} &middot; {{ bnotes[prov].notes[:200] }}{% endif %}{% endif %}</span></summary>
+    {% if items %}<div class="table-wrap"><table class="data"><tr><th>Category</th><th>Benefit</th><th>Value</th><th>Detail</th><th>Conditions</th></tr>
+    {% for b in items %}<tr><td>{{ b.category }}</td><td><b>{{ b.title }}</b>{% if b.source_url %}<a class="tiny" href="{{ b.source_url }}" target="_blank" rel="noopener">source</a>{% endif %}</td><td class="num">{{ b.value }}</td><td class="small" style="max-width:360px">{{ b.detail }}</td><td class="small" style="max-width:260px">{{ b.conditions }}</td></tr>{% endfor %}
+    </table></div>{% else %}<p class="tiny">Not researched yet.</p>{% endif %}</details>
+  {% endfor %}
+</div>
 {% for prov in ['2degrees','spark','one'] %}{% for cat in ['mobile','broadband'] %}
 {% set items = rows|selectattr('provider','equalto',prov)|selectattr('category','equalto',cat)|list %}
 {% set n = notes[prov ~ ':' ~ cat] %}

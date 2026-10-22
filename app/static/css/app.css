@@ -394,3 +394,12 @@ table.data tr.total td { border-top: 2px solid var(--line); background: var(--bg
   .hero-band, .switch-card { grid-template-columns: 1fr; padding: 26px 22px; }
   .score-wrap { justify-content: flex-start; }
 }
+
+.gains li.grp { padding-left: 0; }
+.gains li.grp::before { display: none; }
+.gains li.grp > .tiny { display: block; text-transform: uppercase; letter-spacing: .08em; font-weight: 700; margin: 10px 0 4px; }
+.gains li.grp > div { padding: 5px 0 5px 24px; position: relative; font-size: 14px; }
+.gains li.grp > div::before { content: ""; position: absolute; left: 0; top: 11px; width: 12px; height: 7px; border-left: 2.5px solid currentColor; border-bottom: 2.5px solid currentColor; transform: rotate(-45deg); opacity: .8; }
+.gains .val { color: var(--blue-d); font-weight: 700; }
+.gains li.roam { background: var(--orange-l); border-radius: 10px; padding: 10px 12px; }
+.gains li.roam::before { display: none; }

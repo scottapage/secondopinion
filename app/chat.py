@@ -37,7 +37,9 @@ The user's data is in SQLite tables (one row per line per bill month; month is '
   plan_catalogue(provider /* spark|one|2degrees */, category /* mobile|broadband */, plan_name, price_excl_gst,
                  data_gb /* -1 unlimited */, speed, inclusions, conditions, source_url)
      -- current business plans from the providers' websites: use it to explain what a plan includes or to compare.
-     Note team structures: a "Team" price usually requires one full-price "Plan Leader" line on the account."""
+     Note team structures: a "Team" price usually requires one full-price "Plan Leader" line on the account.
+  benefits(provider, category /* roaming|included|discount|support|device|other */, title, detail, value, conditions, source_url)
+     -- what each provider offers beyond the plan price (roaming rates, included value, association discounts)."""
 
 TOOLS = [{
     "name": "run_sql",
@@ -65,7 +67,11 @@ def _user_db(email):
         CREATE TABLE services(month, carrier, service_type, address, plan_name, speed, amount);
         CREATE TABLE plan_catalogue(provider, category, plan_name, price_excl_gst, data_gb, speed, inclusions,
                                     conditions, source_url);
+        CREATE TABLE benefits(provider, category, title, detail, value, conditions, source_url);
     """)
+    mem.executemany("INSERT INTO benefits VALUES (?,?,?,?,?,?,?)", [
+        (r["provider"], r["category"], r["title"], r["detail"], r["value"], r["conditions"], r["source_url"])
+        for r in db.q("SELECT * FROM benefits WHERE active=1")])
     mem.executemany("INSERT INTO plan_catalogue VALUES (?,?,?,?,?,?,?,?,?)", [
         (r["provider"], r["category"], r["plan_name"], r["price_excl_gst"], r["data_gb"], r["speed"], r["inclusions"],
          r["conditions"], r["source_url"]) for r in db.q("SELECT * FROM plan_catalogue WHERE active=1")])

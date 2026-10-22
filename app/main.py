@@ -890,9 +890,45 @@ def admin_catalogue(request: Request):
         for cat in ("mobile", "broadband"):
             raw = db.get_setting(f"catalogue_note:{prov}:{cat}")
             notes[f"{prov}:{cat}"] = json.loads(raw) if raw else None
-    return page(request, "admin/catalogue.html", tab="catalogue", rows=rows, notes=notes,
+    brows = db.q("SELECT * FROM benefits WHERE active=1 ORDER BY provider, category, id")
+    bnotes = {p: json.loads(db.get_setting(f"benefits_note:{p}") or "null") for p in catalogue.SITES}
+    return page(request, "admin/catalogue.html", tab="catalogue", rows=rows, notes=notes, brows=brows, bnotes=bnotes,
+                bstate=db.get_setting("benefits_requested"),
                 state=db.get_setting("catalogue_requested"), last_result=db.get_setting("catalogue_last_result"),
                 days=db.get_setting("catalogue_days"))
+
+
+@app.post("/admin/benefits/refresh")
+def admin_benefits_refresh(request: Request):
+    require_admin(request)
+    db.set_setting("benefits_requested", "1")
+    background(_benefits_job)
+    return RedirectResponse("/admin/catalogue#benefits", 303)
+
+
+def _benefits_job():
+    try:
+        catalogue.refresh_all_benefits()
+    finally:
+        db.set_setting("benefits_requested", "0")
+
+
+@app.post("/setup/benefits")
+def setup_benefits(token: str = Form(...)):
+    if not SETUP_TOKEN or token != SETUP_TOKEN:
+        raise HTTPException(404)
+    db.set_setting("benefits_requested", "1")
+    background(_benefits_job)
+    return {"ok": True}
+
+
+@app.get("/setup/benefits")
+def setup_benefits_list(token: str = ""):
+    if not SETUP_TOKEN or token != SETUP_TOKEN:
+        raise HTTPException(404)
+    return {"rows": db.q("SELECT provider, category, title, value, detail, conditions, source_url FROM benefits"
+                         " WHERE active=1 ORDER BY provider, category"),
+            "state": db.get_setting("benefits_requested"), "last": db.get_setting("benefits_last_result")}
 
 
 @app.post("/admin/catalogue/refresh")
@@ -1009,3 +1045,24 @@ def setup_claim_invoice(token: str = Form(...), invoice_id: int = Form(...), ema
     db.x("UPDATE invoices SET owner_email=? WHERE id=? AND owner_email IS NULL", (email.lower(), invoice_id))
     ingest.dedupe(email.lower())
     return {"ok": True}
+
+
+@app.post("/setup/benefits-import")
+async def setup_benefits_import(request: Request):
+    """Diagnostics: load researched benefits rows (JSON list) without re-running the agent."""
+    body = await request.json()
+    if not SETUP_TOKEN or body.get("token") != SETUP_TOKEN:
+        raise HTTPException(404)
+    rows = body.get("rows") or []
+    now = time.time()
+    with db.tx() as c:
+        for prov in {r["provider"] for r in rows}:
+            c.execute("UPDATE benefits SET active=0 WHERE provider=?", (prov,))
+        for r in rows:
+            c.execute("INSERT INTO benefits(provider, category, title, detail, value, conditions, source_url, fetched_at)"
+                      " VALUES (?,?,?,?,?,?,?,?)", (r["provider"], r["category"], r["title"], r.get("detail"),
+                                                    r.get("value"), r.get("conditions"), r.get("source_url"), now))
+    for prov in {r["provider"] for r in rows}:
+        db.set_setting(f"benefits_note:{prov}", json.dumps({"at": now, "count": sum(1 for r in rows if r["provider"] == prov),
+                                                          "notes": body.get("notes", "")}))
+    return {"imported": len(rows)}

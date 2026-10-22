@@ -90,6 +90,10 @@ def build(email=None, session_id=None, account=None):
                 acct_month_total[i["account_number"]].get(i["period_month"], 0) + mobile
 
     acct_name = {i["account_number"]: i["account_name"] for i in done}
+    roam_by_line = defaultdict(list)
+    for c in charges:
+        if c["category"] == "roaming" and c["line_id"]:
+            roam_by_line[c["line_id"]].append(c)
     # Per-line matrix (a "line" is a phone number; it may appear on several bills)
     per = {}
     for l in sorted(lines, key=lambda r: r["period_month"] or ""):
@@ -99,6 +103,7 @@ def build(email=None, session_id=None, account=None):
             "account": l["account_number"], "account_name": acct_name.get(l["account_number"]),
             "months": {}, "data": {}, "voice": {}, "allowance": None,
             "roaming": 0.0, "usage": 0.0, "addon": 0.0, "hardware": 0.0, "plan_cost": None, "plan_month": {},
+            "roaming_items": [],
         })
         m = l["period_month"]
         p["user"] = l["user_name"] or p["user"]
@@ -117,7 +122,12 @@ def build(email=None, session_id=None, account=None):
         # Add-ons net of line discounts: a "100% International Discount" cancels the "International" add-on
         p["addon"] += max((l["addon_cost"] or 0) + (l["discount"] or 0), 0)
         p["hardware"] += l["hardware_cost"] or 0
+        p["roaming_items"] += roam_by_line.get(l["id"], [])
 
+    name_count = defaultdict(int)
+    for p in per.values():
+        if p["user"]:
+            name_count[p["user"].strip().lower()] += 1
     line_list = []
     for p in per.values():
         n = max(len(p["months"]), 1)
@@ -130,7 +140,8 @@ def build(email=None, session_id=None, account=None):
             p["allowance_inferred"] = p["allowance"] is not None
         p["util"] = (p["avg_data"] / p["allowance"]) if (p["allowance"] and p["allowance"] > 0
                                                           and p["avg_data"] is not None) else None
-        p["label"] = p["user"] or p["display"]
+        shared = p["user"] and name_count[p["user"].strip().lower()] > 1
+        p["label"] = f"{p['user']} \u00b7 {p['display']}" if shared else (p["user"] or p["display"])
         p["flags"] = []
         p["roaming_m"], p["usage_m"], p["addon_net_m"] = p["roaming"] / n, p["usage"] / n, p["addon"] / n
         p["extras_m"] = p["roaming_m"] + p["usage_m"] + p["addon_net_m"]

@@ -123,3 +123,102 @@ def refresh_all():
 def due():
     last = float(db.get_setting("catalogue_refreshed_at") or 0)
     return time.time() - last > 7 * 24 * 3600
+
+
+# ---------- provider benefits (beyond plan price) ----------
+
+BENEFITS_PROMPT = """You are cataloguing everything {provider} (New Zealand) offers BUSINESS mobile and broadband customers
+beyond the plan price, from the provider's own website: {site}. Use web search and fetch the actual pages - do not
+rely on memory. Cover:
+- roaming: daily roaming price and what it includes, destinations covered, Australia treatment, roaming packs, pay-as-you-go
+  rates, data roaming caps or fair use.
+- included: value bundled into business plans - international minutes and destinations, calls/texts to Australia,
+  data carryover or rollover, data pooling/sharing, hotspot, spend control, apps, streaming or security extras,
+  Microsoft 365, SIM-only vs device discounts.
+- discount: partnership, association or membership discounts for businesses - Chambers of Commerce (regional or NZ
+  Chambers), BusinessNZ, EMA, Federated Farmers / Farm Source, NZ Trucking, franchise or industry schemes, Xero/MYOB
+  partners, multi-line / team discounts, bundle (mobile + broadband) credits, loyalty or sign-on credits.
+- support: NZ-based support, account management, business hub tools, SLAs, device replacement, insurance.
+- device: interest-free terms, trade-in, upgrade programmes, sign-on credit to clear existing handset balances.
+- other: anything else a business would weigh (network coverage claims, 5G, eSIM, number porting help, contract terms,
+  early termination rules).
+Record each as a separate item with a short title, the detail, a headline value (e.g. "$8/day", "20% off", "300 mins")
+and conditions, plus the URL it came from. Be specific with numbers and destinations. When finished, call
+save_benefits exactly once with the complete list; if a page blocked you, say so in notes."""
+
+SAVE_BENEFITS = {
+    "name": "save_benefits",
+    "description": "Save the complete list of business benefits found on the provider's website.",
+    "strict": True,
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "benefits": {"type": "array", "items": {
+                "type": "object",
+                "properties": {
+                    "category": {"type": "string", "enum": ["roaming", "included", "discount", "support", "device", "other"]},
+                    "title": {"type": "string"}, "detail": {"type": "string"}, "value": {"type": "string"},
+                    "conditions": {"type": "string"}, "source_url": {"type": "string"},
+                },
+                "required": ["category", "title", "detail", "value", "conditions", "source_url"],
+                "additionalProperties": False,
+            }},
+            "notes": {"type": "string"},
+        },
+        "required": ["benefits", "notes"],
+        "additionalProperties": False,
+    },
+}
+
+
+def refresh_benefits(provider):
+    model = db.get_setting("claude_model")
+    cl = ai.client()
+    messages = [{"role": "user", "content": BENEFITS_PROMPT.format(provider=CARRIERS[provider], site=SITES[provider])}]
+    tools = [{"type": "web_search_20260209", "name": "web_search", "max_uses": 16},
+             {"type": "web_fetch_20260209", "name": "web_fetch", "max_uses": 24}, SAVE_BENEFITS]
+    saved = None
+    for _ in range(14):
+        with cl.messages.stream(model=model, max_tokens=32000, messages=messages, tools=tools,
+                                output_config={"effort": "medium"}) as stream:
+            resp = stream.get_final_message()
+        inp, out = ai._usage_tokens(resp.usage)
+        ai.log_usage(f"benefits:{provider}", "claude", model, inp, out)
+        messages.append({"role": "assistant", "content": resp.content})
+        if resp.stop_reason == "pause_turn":
+            continue
+        call = next((b for b in resp.content if b.type == "tool_use" and b.name == "save_benefits"), None)
+        if call:
+            saved = call.input
+            break
+        if resp.stop_reason == "tool_use":
+            messages.append({"role": "user", "content": [
+                {"type": "tool_result", "tool_use_id": b.id, "content": "Unknown tool", "is_error": True}
+                for b in resp.content if b.type == "tool_use"]})
+            continue
+        messages.append({"role": "user", "content": "Please call save_benefits now with everything you found."})
+    if not saved:
+        raise RuntimeError("Benefits agent finished without saving")
+    now = time.time()
+    with db.tx() as c:
+        if saved["benefits"]:
+            c.execute("UPDATE benefits SET active=0 WHERE provider=?", (provider,))
+        for b in saved["benefits"]:
+            c.execute("INSERT INTO benefits(provider, category, title, detail, value, conditions, source_url, fetched_at)"
+                      " VALUES (?,?,?,?,?,?,?,?)", (provider, b["category"], b["title"], b["detail"], b["value"],
+                                                    b["conditions"], b["source_url"], now))
+    db.set_setting(f"benefits_note:{provider}", json.dumps({"at": now, "count": len(saved["benefits"]),
+                                                          "notes": saved["notes"][:500]}))
+    return len(saved["benefits"])
+
+
+def refresh_all_benefits():
+    results = {}
+    for provider in SITES:
+        try:
+            results[provider] = refresh_benefits(provider)
+        except Exception as e:
+            traceback.print_exc()
+            results[provider] = f"error: {e}"[:200]
+    db.set_setting("benefits_last_result", json.dumps(results))
+    return results

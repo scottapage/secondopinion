@@ -131,9 +131,11 @@ REVIEW_PROMPT = """You are a senior New Zealand telco account manager reviewing 
 customer's mobile (and broadband) bills. The analysis is being shown to the customer.
 
 1. notes: up to 4 short, specific observations a telco expert would make that help this customer understand
-   or control their spend - grounded strictly in the numbers given and the current plan catalogue. Mention
-   names and dollar amounts. Where a current plan from the catalogue would clearly suit them better, say so
-   and cite it. No generic advice. Amounts exclude GST.
+   or control their spend - grounded strictly in the numbers given, the current plan catalogue and the provider
+   benefits. Mention names and dollar amounts. Where a current plan from the catalogue would clearly suit them
+   better, say so and cite it. Where a benefit matters for THIS customer (e.g. their roaming destinations and
+   days vs another provider's daily rate, international minutes they pay for that another plan includes, an
+   association discount they could qualify for), quantify it. No generic advice. Amounts exclude GST.
 2. facts: up to 3 "did you know" facts about how THIS customer's bills are structured that most people miss -
    the mechanics, not savings. E.g. an add-on that is 100% discounted and what happens if the discount lapses;
    a companion/team plan whose price depends on keeping a lead line; a device discount spread over 36 months
@@ -181,6 +183,15 @@ def catalogue_text(providers=None):
     return "\n".join(out)
 
 
+def benefits_text(providers):
+    rows = db.q("SELECT * FROM benefits WHERE active=1 ORDER BY provider, category")
+    rows = [r for r in rows if r["provider"] in providers]
+    if not rows:
+        return "(no benefits research yet)"
+    return "\n".join(f"- {CARRIERS.get(r['provider'], r['provider'])} [{r['category']}] {r['title']}: {r['value']} - "
+                     f"{(r['detail'] or '')[:200]} (conditions: {(r['conditions'] or '')[:120]})" for r in rows)
+
+
 def review_customer(owner_email, session_id, invoice_id):
     a = analysis.build(email=owner_email, session_id=session_id)
     if not a.get("has_data"):
@@ -198,7 +209,8 @@ def review_customer(owner_email, session_id, invoice_id):
     }
     known = [r["title"] for r in db.q("SELECT title FROM suggestions")]
     msg = (f"Analysis:\n{json.dumps(summary, default=str)}\n\nCurrent plan catalogue (from provider websites):\n"
-           f"{catalogue_text(carriers)}\n\nFinding types already proposed (do not repeat or rephrase these):\n"
+           f"{catalogue_text(carriers)}\n\nProvider benefits beyond price (roaming, included value, association "
+           f"discounts, support), from provider websites:\n{benefits_text(carriers)}\n\nFinding types already proposed (do not repeat or rephrase these):\n"
            + "\n".join(f"- {t}" for t in known))
     out, _ = ai.claude_json(REVIEW_PROMPT, [{"type": "text", "text": msg}], REVIEW_SCHEMA, "review", invoice_id,
                             effort="medium")

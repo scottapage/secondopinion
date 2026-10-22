@@ -103,6 +103,65 @@ def pick_broadband(service):
     return "Business Fibre 500", "fibre"
 
 
+ROAM_FALLBACK = {"2degrees": 8.0, "one": 8.70, "spark": 7.0}
+
+
+def benefits(provider=None, category=None):
+    rows = db.q("SELECT * FROM benefits WHERE active=1 ORDER BY category, id")
+    return [r for r in rows if (not provider or r["provider"] == provider) and (not category or r["category"] == category)]
+
+
+def daily_roaming_rate(provider):
+    """Headline daily roaming price for a provider, from the researched benefits (fallback to known rates)."""
+    for b in benefits(provider, "roaming"):
+        m = re.search(r"\$\s?(\d+(?:\.\d+)?)\s*(?:/|per|a)\s*day", f"{b['value']} {b['title']} {b['detail']}", re.I)
+        if m:
+            return float(m.group(1))
+    return ROAM_FALLBACK.get(provider, 8.0)
+
+
+def roaming_comparison(lines, n_months):
+    """Estimate what the customer's roaming would cost on 2degrees: $0 in Australia, $8/day elsewhere."""
+    days_au, days_other, spend = 0.0, 0.0, 0.0
+    for p in lines:
+        for r in p.get("roaming_items", []):
+            amt = r["amount"] or 0
+            if amt <= 0:
+                continue
+            spend += amt
+            desc = (r["description"] or "").lower()
+            m = re.search(r"(\d+)\s*(?:days?|x)\b|x\s*(\d+)", desc)
+            days = float(m.group(1) or m.group(2)) if m else amt / daily_roaming_rate(p["carrier"])
+            if re.search(r"australia|aussie|\bau\b|sydney|melbourne|brisbane|perth|gold coast", desc):
+                days_au += days
+            else:
+                days_other += days
+    if spend <= 0:
+        return None
+    rate = daily_roaming_rate("2degrees")
+    future = days_other * rate
+    return {"now_month": round(spend / n_months, 2), "future_month": round(future / n_months, 2),
+            "days_au": round(days_au), "days_other": round(days_other),
+            "saving_year": round((spend - future) / n_months * 12, 2), "rate": rate}
+
+
+def gains_list():
+    """What a customer gains on 2degrees, from the researched benefits; falls back to the known basics."""
+    rows = benefits("2degrees")
+    out = []
+    for cat in ("included", "roaming", "discount", "device", "support"):
+        for b in [r for r in rows if r["category"] == cat][:3]:
+            out.append({"category": cat, "title": b["title"], "value": b["value"], "detail": b["detail"],
+                        "conditions": b["conditions"]})
+    if not out:
+        out = [{"category": "included", "title": t, "value": "", "detail": "", "conditions": ""} for t in (
+            "Unlimited calls and texts to NZ and Australia on every plan",
+            "300 international minutes a month on 100GB and Unlimited plans",
+            "Daily roaming in Australia at no extra cost; $8/day in 100+ other countries",
+            "Unused data carries over for up to 12 months on capped plans")]
+    return out
+
+
 def switch_plan(lines, services, devices, n_months):
     """Build the switch scenario. `lines` are the internal per-line dicts from analysis.build."""
     out_lines, families = [], {}
@@ -154,11 +213,10 @@ def switch_plan(lines, services, devices, n_months):
         "optimised_month": round(opt_lines + sum(s["price"] for s in out_services), 2),
         "optimised_saving_year": round((cur_m - opt_lines - sum(s["price"] for s in out_services)) * 12, 2),
         "extras_month": round(extras_m, 2), "hardware_balance": round(hw_balance, 2), "roaming_au": roaming_au,
-        "gains": ["Unlimited calls and texts to NZ and Australia on every plan",
-                  "300 international minutes a month on 100GB and Unlimited plans",
-                  "Daily roaming in Australia at no extra cost; $8/day in 100+ other countries",
-                  "Unused data carries over for up to 12 months on capped plans",
-                  "One bill, one account, one team price"],
+        "roaming": roaming_comparison(lines, n_months),
+        "benefits": gains_list(),
+        "gains": [(b["title"] + (f" ({b['value']})" if b["value"] else "")) for b in gains_list()][:6]
+                 + ["One bill, one account, one team price"],
         "porting": {
             "have": ["Phone numbers (MSISDN)", "Current provider", "Current account number", "Account name"],
             "need": ["Each user's name for the new SIM", "A delivery address - or go eSIM and skip the post"],

@@ -116,7 +116,7 @@
       (sw.optimised_saving_year > sw.saving_year ? ' Right-sized, where usage allows, <b>' + money(sw.optimised_month) + '/mth</b> — ' + money(sw.optimised_saving_year) + ' a year.' : '') + '</p>' +
       '<div class="sw-actions"><a class="btn white" href="/offer">Make me an offer</a><button class="link-btn light" id="toSwitch">See it line by line →</button></div></div>' +
       '<div class="sw-right"><div class="sw-cmp"><div><span>Today</span><b data-count="' + sw.current_month + '">$0</b><i>plans + add-ons /mth</i></div><div class="arrow">→</div><div><span>2degrees</span><b data-count="' + sw.future_month + '">$0</b><i>like-for-like /mth</i></div></div>' +
-      '<ul class="gains">' + sw.gains.slice(0, 3).map(g => '<li>' + esc(g) + '</li>').join('') + '</ul></div>';
+      '<ul class="gains">' + (sw.roaming && sw.roaming.saving_year > 0 ? '<li>Roaming about ' + money(sw.roaming.saving_year) + '/yr cheaper (' + sw.roaming.days_other + ' days at $' + sw.roaming.rate + '/day' + (sw.roaming.days_au ? ', Australia free' : '') + ')</li>' : '') + sw.gains.slice(0, 3).map(g => '<li>' + esc(g) + '</li>').join('') + '</ul></div>';
     $('toSwitch').onclick = () => goTab('switch');
     countUp($('switchCard'));
   }
@@ -147,7 +147,12 @@
       '<p class="small" style="margin-top:12px;opacity:.85">Unchanged by switching: usage extras (' + money(sw.extras_month, 2) + '/mth) and device repayments (' + money(A.kpi.devices_month, 2) + '/mth, ' + money(sw.hardware_balance) + ' remaining' + (sw.hardware_balance > 0 ? ' — a sign-on credit can clear this' : '') + ').</p>' +
       '<a class="btn white" href="/offer" style="margin-top:16px">Make me an offer</a>';
     $('portingList').innerHTML = sw.porting.have.map(h => '<div class="port ok">✓ ' + esc(h) + ' <span class="tiny" style="display:inline">on your bills</span></div>').join('') + sw.porting.need.map(h => '<div class="port need">○ ' + esc(h) + '</div>').join('');
-    $('gainsList').innerHTML = sw.gains.map(g => '<li>' + esc(g) + '</li>').join('');
+    const CATN = { included: 'Included value', roaming: 'Roaming', discount: 'Discounts & partnerships', device: 'Devices', support: 'Support' };
+    const groups = {};
+    (sw.benefits || []).forEach(b => (groups[b.category] = groups[b.category] || []).push(b));
+    $('gainsList').innerHTML = (sw.roaming ? '<li class="roam"><b>Your roaming: ' + money(sw.roaming.now_month, 2) + '/mth now, about ' + money(sw.roaming.future_month, 2) + ' on 2degrees</b><div class="tiny">' + sw.roaming.days_other + ' days outside Australia at $' + sw.roaming.rate + '/day' + (sw.roaming.days_au ? ', ' + sw.roaming.days_au + ' days in Australia free' : '') + (sw.roaming.saving_year > 0 ? ' \u2014 about ' + money(sw.roaming.saving_year) + ' a year' : '') + '</div></li>' : '') +
+      Object.keys(CATN).filter(k => groups[k]).map(k => '<li class="grp"><span class="tiny">' + CATN[k] + '</span>' + groups[k].map(b => '<div><b>' + esc(b.title) + '</b>' + (b.value ? ' <span class="val">' + esc(b.value) + '</span>' : '') + (b.detail ? '<div class="tiny">' + esc(b.detail) + '</div>' : '') + '</div>').join('') + '</li>').join('') +
+      (!(sw.benefits || []).length ? sw.gains.map(g => '<li>' + esc(g) + '</li>').join('') : '');
   }
 
   // ---- Broadband & other services

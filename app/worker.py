@@ -62,6 +62,7 @@ def catalogue_loop():
             if db.get_setting("catalogue_requested") == "1" or time.time() - last > days * 86400:
                 db.set_setting("catalogue_requested", "running")
                 catalogue.refresh_all()
+                catalogue.refresh_all_benefits()
                 db.set_setting("catalogue_requested", "0")
         except Exception:
             traceback.print_exc()
