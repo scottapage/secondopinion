@@ -973,3 +973,29 @@ def setup_dossier_send(token: str = Form(...), email: str = Form(...)):
         raise HTTPException(404)
     background(dossier.send, email.lower())
     return {"ok": True, "to": db.get_setting("sales_email")}
+
+
+def move_bills(from_email, to_email):
+    """Re-home every bill (and derived notes/submissions) from one email address to another."""
+    from_email, to_email = from_email.lower(), to_email.lower()
+    with db.tx() as c:
+        n = c.execute("UPDATE invoices SET owner_email=? WHERE owner_email=?", (to_email, from_email)).rowcount
+        c.execute("UPDATE submissions SET email=? WHERE email=?", (to_email, from_email))
+        c.execute("DELETE FROM customer_notes WHERE owner=?", (from_email,))
+    ingest.dedupe(to_email)
+    db.log_event("bills_moved", to_email, from_email=from_email, bills=n)
+    return n
+
+
+@app.post("/admin/move-bills")
+def admin_move_bills(request: Request, from_email: str = Form(...), to_email: str = Form(...)):
+    require_admin(request)
+    n = move_bills(from_email, to_email)
+    return RedirectResponse(f"/admin/user?email={to_email.lower()}&msg={n}+bills+moved+from+{from_email.lower()}", 303)
+
+
+@app.post("/setup/move-bills")
+def setup_move_bills(token: str = Form(...), from_email: str = Form(...), to_email: str = Form(...)):
+    if not SETUP_TOKEN or token != SETUP_TOKEN:
+        raise HTTPException(404)
+    return {"moved": move_bills(from_email, to_email)}

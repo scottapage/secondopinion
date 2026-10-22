@@ -7,6 +7,7 @@
       {% if admin_view %}<div class="alert info" style="margin:0 0 14px;display:flex;gap:14px;align-items:center;flex-wrap:wrap">Viewing as <b>{{ view_email }}</b> (superadmin)
         <a class="btn sm ghost" href="/admin/dossier.xlsx?email={{ view_email|urlencode }}">Download dossier (xlsx)</a>
         <form method="post" action="/admin/dossier/send" style="display:inline"><input type="hidden" name="email" value="{{ view_email }}"><button class="btn sm">Send dossier to {{ sales_email }}</button></form>
+        <form method="post" action="/admin/move-bills" style="display:inline-flex;gap:6px;align-items:center" onsubmit="return confirm('Move every bill for this customer to the address entered?')"><input type="hidden" name="from_email" value="{{ view_email }}"><input type="email" name="to_email" placeholder="move all bills to..." required style="padding:6px 10px;font-size:13px;width:220px"><button class="btn sm ghost">Move</button></form>
         {% if msg %}<span style="color:#00875A;font-weight:600">{{ msg }}</span>{% endif %}</div>{% endif %}
       <div class="eyebrow" style="margin-bottom:0">{{ (user.company if user and user.company) or view_email }}</div>
     </div>
