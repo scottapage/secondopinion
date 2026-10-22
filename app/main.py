@@ -923,3 +923,11 @@ def setup_learning(token: str = ""):
         "ai_by_purpose": db.q("SELECT purpose, COUNT(*) calls, ROUND(SUM(cost_usd),2) usd FROM ai_usage"
                               " GROUP BY purpose"),
     }
+
+
+@app.get("/setup/catalogue-rows")
+def setup_catalogue_rows(token: str = ""):
+    if not SETUP_TOKEN or token != SETUP_TOKEN:
+        raise HTTPException(404)
+    return db.q("SELECT provider, category, plan_name, price_excl_gst, data_gb, speed, inclusions, conditions"
+                " FROM plan_catalogue WHERE active=1 ORDER BY provider, category, price_excl_gst")
