@@ -31,15 +31,70 @@ def price_of(name):
     return FALLBACK.get(name, (None, None))[0]
 
 
-def promo_of(name):
-    """Current promotion on a 2degrees plan, if the catalogue recorded one: first-year cost and description."""
-    for r in _cat("2degrees"):
-        if r["plan_name"].lower() == name.lower() and (r.get("promo_months") or 0) > 0 and r["price_excl_gst"]:
-            pm, pp, price = int(r["promo_months"]), float(r.get("promo_price") or 0), r["price_excl_gst"]
-            pm = min(pm, 12)
-            return {"text": r.get("promo_text") or "", "months": pm, "promo_price": pp, "term": r.get("term_months") or 0,
-                    "first_year": round(pp * pm + price * (12 - pm), 2), "saving_year": round((price - pp) * pm, 2)}
-    return None
+def find_plan(family, team=False):
+    """The current 2degrees catalogue row for a plan family, matched on attributes (names change between refreshes):
+    family in 10 | 100 | unl | data | fibre500 | fibre900 | hyper | wireless4g | wireless5g."""
+    rows = _cat("2degrees", "broadband" if family.startswith(("fibre", "hyper", "wireless")) else "mobile")
+    team_re = re.compile(r"team|additional|companion", re.I)
+    cands = []
+    for r in rows:
+        name, speed = (r["plan_name"] or ""), (r["speed"] or "")
+        txt = f"{name} {speed}".lower()
+        is_team = bool(team_re.search(name))
+        if family in ("10", "100", "unl"):
+            if re.search(r"fair share|sharer|data only|data-only|watch|wearable", txt):
+                continue
+            want = {"10": 10, "100": 100, "unl": -1}[family]
+            if r["data_gb"] != want or is_team != team:
+                continue
+        elif family == "data":
+            if not re.search(r"data only|data-only|unlimited data", txt) or re.search(r"sharer", txt):
+                continue
+        elif family == "hyper":
+            if not re.search(r"hyper", txt):
+                continue
+        elif family == "fibre900":
+            if not re.search(r"fibre|fiber", txt) or re.search(r"hyper|wireless", txt):
+                continue
+            if re.search(r"500|300", txt) and not re.search(r"900|max|gig", txt):
+                continue
+        elif family == "fibre500":
+            if not re.search(r"fibre|fiber", txt) or re.search(r"hyper|wireless", txt):
+                continue
+        elif family == "wireless5g":
+            if not re.search(r"wireless", txt) or not re.search(r"5g", txt) or re.search(r"rural|starlink", txt):
+                continue
+        elif family == "wireless4g":
+            if not re.search(r"wireless", txt) or re.search(r"5g|rural|starlink", txt):
+                continue
+        if r["price_excl_gst"]:
+            cands.append(r)
+    if not cands:
+        return None
+    return sorted(cands, key=lambda r: (-r["price_excl_gst"] if family == "fibre900" else r["price_excl_gst"]))[0]
+
+
+FALLBACK_NAME = {
+    ("10", False): "Business 10GB", ("100", False): "Business 100GB", ("100", True): "Business 100GB Team plan",
+    ("unl", False): "Business Unlimited", ("unl", True): "Business Unlimited Team plan",
+    ("data", False): "Business Unlimited Data", ("fibre500", False): "Business Fibre 500",
+    ("fibre900", False): "Business Fibre 900", ("hyper", False): "Business Hyperfibre 2",
+    ("wireless4g", False): "Unlimited 4G Wireless", ("wireless5g", False): "Unlimited 5G Wireless",
+}
+
+
+def plan_for(family, team=False):
+    """(display name, price, promo dict or None) for a 2degrees plan family."""
+    r = find_plan(family, team)
+    if r:
+        promo = None
+        if (r.get("promo_months") or 0) > 0:
+            pm, pp, price = min(int(r["promo_months"]), 12), float(r.get("promo_price") or 0), r["price_excl_gst"]
+            promo = {"text": r.get("promo_text") or "", "months": pm, "promo_price": pp, "term": r.get("term_months") or 0,
+                     "first_year": round(pp * pm + price * (12 - pm), 2), "saving_year": round((price - pp) * pm, 2)}
+        return r["plan_name"], r["price_excl_gst"], promo
+    name = FALLBACK_NAME.get((family, team)) or FALLBACK_NAME.get((family, False))
+    return name, FALLBACK.get(name, (0, None))[0], None
 
 
 def _words(s):
@@ -91,27 +146,19 @@ def pick_mobile(line):
     return "unl", f"current allowance {al / GB:.0f}GB"
 
 
-FAMILY = {
-    "10": ("Business 10GB", "Business 10GB"),
-    "100": ("Business 100GB", "Business 100GB Team plan"),
-    "unl": ("Business Unlimited", "Business Unlimited Team plan"),
-    "data": ("Business Unlimited Data", "Business Unlimited Data"),
-}
-
-
 def pick_broadband(service):
     s = f"{service.get('plan') or ''} {service.get('speed') or ''}".lower()
     if re.search(r"hyper|2000|4000|8000", s):
-        return "Business Hyperfibre 2", "hyperfibre"
+        return "hyper", "hyperfibre"
     if re.search(r"900|max|boost|1000|gig", s):
-        return "Business Fibre 900", "fastest standard fibre"
+        return "fibre900", "fastest standard fibre"
     if re.search(r"fibre|fiber|everyday|300|500", s):
-        return "Business Fibre 500", "fibre, standard speed"
+        return "fibre500", "fibre, standard speed"
     if re.search(r"5g", s):
-        return "Unlimited 5G Wireless", "wireless 5G"
+        return "wireless5g", "wireless 5G"
     if re.search(r"wireless|4g|rural", s):
-        return "Unlimited 4G Wireless", "wireless 4G"
-    return "Business Fibre 500", "fibre"
+        return "wireless4g", "wireless 4G"
+    return "fibre500", "fibre"
 
 
 ROAM_FALLBACK = {"2degrees": 8.0, "one": 8.70, "spark": 7.0}
@@ -215,8 +262,8 @@ def _chamber_scenario(out_lines, out_services, cur_m):
     """What the like-for-like 2degrees setup costs for a Chambers of Commerce member."""
     ch = chamber_offer()
     mobile = sum(l["price"] for l in out_lines)
-    fibre = sum(s["price"] for s in out_services if "fibre" in (s["rec"] or "").lower())
-    wireless = sum(s["price"] for s in out_services if "fibre" not in (s["rec"] or "").lower())
+    fibre = sum(s["price"] for s in out_services if re.search(r"fibre|fiber|hyper", (s["rec"] or ""), re.I))
+    wireless = sum(s["price"] for s in out_services if not re.search(r"fibre|fiber|hyper", (s["rec"] or ""), re.I))
     month = mobile * (1 - ch["mobile_pct"] / 100) + fibre * (1 - ch["fibre_pct"] / 100) + wireless
     first_year = month * 12 - mobile * (1 - ch["mobile_pct"] / 100) * ch["mobile_free_months"] \
         - fibre * (1 - ch["fibre_pct"] / 100) * ch["fibre_free_months"]
@@ -231,11 +278,10 @@ def switch_plan(lines, services, devices, n_months):
         fam, why = pick_mobile(p)
         families.setdefault(fam, []).append((p, why))
     for fam, members in families.items():
-        lead, team = FAMILY[fam]
+        has_team = fam in ("100", "unl")
         for i, (p, why) in enumerate(members):
-            role = "Plan Leader" if (i == 0 and lead != team) else ("Team" if lead != team else "")
-            name = lead if i == 0 else team
-            price = price_of(name) or 0
+            role = "Plan Leader" if (i == 0 and has_team) else ("Team" if has_team else "")
+            name, price, promo = plan_for(fam, team=(i > 0 and has_team))
             current = (p["plan_cost"] or 0) + max(p["addon_net_m"], 0)  # plan + add-ons actually paid
             out_lines.append({
                 "number": p["number"], "display": p["display"], "label": p["label"], "user": p["user"],
@@ -243,23 +289,23 @@ def switch_plan(lines, services, devices, n_months):
                 "account": p["account"], "account_name": p.get("account_name"),
                 "plan": p["plan"], "current": round(current, 2), "extras": round(p["extras_m"], 2),
                 "rec": name, "role": role, "price": price, "why": why, "saving": round(current - price, 2),
-                "already": p["carrier"] == "2degrees", "promo": promo_of(name),
+                "already": p["carrier"] == "2degrees", "promo": promo, "family": fam,
             })
     out_services = []
     for s in services:
-        name, why = pick_broadband(s)
-        price = price_of(name) or 0
+        fam, why = pick_broadband(s)
+        name, price, promo = plan_for(fam)
         out_services.append({"type": s["type"], "address": s["address"], "carrier": s["carrier"],
                              "carrier_code": s.get("carrier_code"), "plan": s["plan"], "current": s["avg"], "rec": name,
-                             "price": price, "why": why, "saving": round(s["avg"] - price, 2), "promo": promo_of(name)})
+                             "price": price, "why": why, "saving": round(s["avg"] - price, 2), "promo": promo})
     # Right-sized scenario: unlimited lines whose usage isn't shown may fit the 100GB tier
     opt_lines = 0.0
-    seen_100_leader = any(l["rec"] == "Business 100GB" for l in out_lines)
+    seen_100_leader = any(l["family"] == "100" and l["role"] == "Plan Leader" for l in out_lines)
     for l in out_lines:
-        if l["rec"].startswith("Business Unlimited") and l["rec"] != "Business Unlimited Data" and "usage not shown" in l["why"]:
-            name = "Business 100GB Team plan" if seen_100_leader else "Business 100GB"
+        if l["family"] == "unl" and "usage not shown" in l["why"]:
+            name, price, _ = plan_for("100", team=seen_100_leader)
             seen_100_leader = True
-            l["alt"], l["alt_price"] = name, price_of(name) or 0
+            l["alt"], l["alt_price"] = name, price or 0
             opt_lines += l["alt_price"]
         else:
             opt_lines += l["price"]

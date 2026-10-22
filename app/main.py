@@ -986,8 +986,7 @@ def setup_learning(token: str = ""):
 def setup_catalogue_rows(token: str = ""):
     if not SETUP_TOKEN or token != SETUP_TOKEN:
         raise HTTPException(404)
-    return db.q("SELECT provider, category, plan_name, price_excl_gst, data_gb, speed, inclusions, conditions"
-                " FROM plan_catalogue WHERE active=1 ORDER BY provider, category, price_excl_gst")
+    return db.q("SELECT * FROM plan_catalogue WHERE active=1 ORDER BY provider, category, price_excl_gst")
 
 
 # ---------- sales dossier ----------
