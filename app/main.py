@@ -15,7 +15,8 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.sessions import SessionMiddleware
 
 from . import analysis, catalogue, chat, db, dossier, example, extract, ingest, learning, mailer, notify, security, visitors
-from .config import BASE_URL, CHART_DIR, DATA_DIR, MAX_UPLOAD_MB, SECRET_KEY, SECRET_SETTINGS, SETUP_TOKEN, SUPERADMIN_EMAIL
+from .config import (BASE_URL, CARRIERS, CHART_DIR, DATA_DIR, MAX_UPLOAD_MB, SECRET_KEY, SECRET_SETTINGS, SETUP_TOKEN,
+                     SUPERADMIN_EMAIL, carrier_label)
 from .tpl import render
 
 db.init()
@@ -156,8 +157,10 @@ def _submission_for(request, token):
 @app.get("/api/submission/{token}")
 def submission_status(request: Request, token: str):
     sub = _submission_for(request, token)
-    invs = db.q("SELECT id, filename, status, error, carrier, account_name, period_month, total_excl_gst, line_count"
-                " FROM invoices WHERE submission_id=? ORDER BY id", (sub["id"],))
+    invs = db.q("SELECT id, filename, status, error, carrier, carrier_name, account_name, period_month, total_excl_gst,"
+                " line_count FROM invoices WHERE submission_id=? ORDER BY id", (sub["id"],))
+    for i in invs:
+        i["carrier_label"] = carrier_label(i["carrier"], i.pop("carrier_name"))
     pending = any(i["status"] in ("queued", "processing") for i in invs)
     return {"pending": pending, "invoices": invs}
 
@@ -193,7 +196,8 @@ def _clean(a):
     a = dict(a)
     a["invoices"] = [{k: i[k] for k in ("id", "filename", "status", "error", "carrier", "account_name",
                                         "account_number", "period_month", "total_excl_gst", "line_count",
-                                        "invoice_number")} for i in a.get("invoices", [])]
+                                        "invoice_number")} | {"carrier_label": carrier_label(i["carrier"], i.get("carrier_name"))}
+                     for i in a.get("invoices", [])]
     return a
 
 
@@ -558,7 +562,8 @@ def admin_invoices(request: Request, status: str = "", carrier: str = "", qs: st
         args += [f"%{qs}%"] * 4
     rows = db.q(f"SELECT i.*, s.source FROM invoices i LEFT JOIN submissions s ON s.id=i.submission_id"
                 f" WHERE {' AND '.join(where)} ORDER BY i.id DESC LIMIT 300", args)
-    return page(request, "admin/invoices.html", rows=rows, status=status, carrier=carrier, qs=qs, tab="invoices")
+    return page(request, "admin/invoices.html", rows=rows, status=status, carrier=carrier, qs=qs, tab="invoices",
+                carriers=CARRIERS)
 
 
 @app.get("/admin/invoice/{invoice_id}", response_class=HTMLResponse)

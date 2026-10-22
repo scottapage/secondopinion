@@ -63,9 +63,10 @@ window.SO = (function () {
     });
   }
 
-  const PROV = { '2degrees': ['2degrees', '#009ED8'], one: ['One NZ', '#00A651'], spark: ['Spark', '#D4287F'] };
+  const PROV = { '2degrees': ['2degrees', '#009ED8'], one: ['One NZ', '#00A651'], spark: ['Spark', '#D4287F'], skinny: ['Skinny', '#F5A623'], mercury: ['Mercury', '#2B3A8F'], contact: ['Contact', '#E4002B'], electric_kiwi: ['Electric Kiwi', '#2E7D32'], nova: ['Nova Energy', '#F26522'], trustpower: ['Trustpower', '#005EB8'], genesis: ['Genesis', '#6D2077'], kogan: ['Kogan', '#333333'], slingshot: ['Slingshot', '#5A2D82'], orcon: ['Orcon', '#1A1A1A'], flip: ['Flip', '#FF5A5F'], now: ['NOW', '#00A3E0'], voyager: ['Voyager', '#00B5AD'], sky: ['Sky Broadband', '#0072CE'], compass: ['Compass', '#6C3483'], myrepublic: ['MyRepublic', '#7B1FA2'], wireless_nation: ['Wireless Nation', '#0B7A75'], starlink: ['Starlink', '#222222'], zeronet: ['Zeronet', '#1565C0'], quic: ['Quic', '#00897B'], bigpipe: ['Bigpipe', '#FF8F00'], vocus: ['Vocus', '#3949AB'], rocket: ['Rocket Mobile', '#C62828'], warehouse: ['Warehouse Mobile', '#D32F2F'] };
   const provColor = (code) => (PROV[code] || ['', '#8E9699'])[1];
-  const provBadge = (code, name) => '<span class="pbadge" style="--pc:' + provColor(code) + '"><i></i>' + (name || (PROV[code] || [code])[0]) + '</span>';
+  const provName = (code) => (PROV[code] || [String(code || 'Other').replace(/_/g, ' ')])[0];
+  const provBadge = (code, name) => '<span class="pbadge" style="--pc:' + provColor(code) + '"><i></i>' + (name || provName(code)) + '</span>';
   function scoreRing(score, size) {
     const r = (size - 14) / 2, c = 2 * Math.PI * r, col = score >= 85 ? '#00875A' : score >= 70 ? '#009ED8' : score >= 50 ? '#FFC528' : '#F1600D';
     return '<svg width="' + size + '" height="' + size + '" viewBox="0 0 ' + size + ' ' + size + '"><circle cx="' + size / 2 + '" cy="' + size / 2 + '" r="' + r + '" fill="none" stroke="rgba(255,255,255,.14)" stroke-width="12"/>' +
@@ -81,5 +82,5 @@ window.SO = (function () {
   }
   const initials = (name) => (name || '?').split(/\s+/).filter(Boolean).slice(0, 2).map(w => w[0].toUpperCase()).join('') || '?';
 
-  return { C, SERIES, CAT, money, make, axisX, axisY, sparkline, fromSpec, base, PROV, provColor, provBadge, scoreRing, countUp, initials };
+  return { C, SERIES, CAT, money, make, axisX, axisY, sparkline, fromSpec, base, PROV, provColor, provName, provBadge, scoreRing, countUp, initials };
 })();

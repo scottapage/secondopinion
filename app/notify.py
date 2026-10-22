@@ -55,8 +55,8 @@ def session_summary(to, session_id, claim_url):
 def no_attachment(to, subject):
     html = render("email/no_attachment.html", email=to)
     mailer.send(to, "Re: " + (subject or "your email"), html,
-                "Thanks for your email. We couldn't find a PDF bill attached. Please reply with your Spark, One NZ or"
-                " 2degrees bill attached as a PDF.")
+                "Thanks for your email. We couldn't find a PDF bill attached. Please reply with your mobile or"
+                " broadband bill (any NZ provider) attached as a PDF.")
 
 
 def code(to, code_value, purpose):

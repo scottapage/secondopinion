@@ -9,8 +9,9 @@ import time
 
 from . import ai, analysis, db
 
-SYSTEM = """You are the SecondOpinion assistant. You help a New Zealand business understand its mobile phone bills
-(Spark, One NZ, 2degrees) - mobile and broadband - and how to control the cost.
+SYSTEM = """You are the SecondOpinion assistant. You help a New Zealand business understand its telco bills - mobile
+and broadband, from any provider (Spark, One NZ, 2degrees, Skinny, Mercury, Contact and others) - and how to control
+the cost.
 
 Style:
 - Conversational, direct and concise: lead with the answer in a sentence or two. Usually under 120 words.
@@ -30,7 +31,8 @@ The user's data is in SQLite tables (one row per line per bill month; month is '
         data_allowance_gb /* -1 = unlimited */, voice_minutes, sms_count, roaming_cost, out_of_plan_cost, addon_cost,
         hardware_cost, other_cost, discount)
   charges(month, number, user_name, description, category, amount)
-     category in (plan, addon, usage, roaming, hardware, one_off, discount, account, other)
+     category in (plan, addon, usage, roaming, hardware, one_off, discount, account, non_mobile, non_telco, other)
+     -- non_mobile = broadband/landline on the same bill; non_telco = power/gas on a combined bill (not telco spend)
   devices(month, number, description, monthly_amount, payments_remaining, remaining_balance)
   services(month, carrier, service_type /* broadband|landline|other */, address, plan_name, speed, amount)
      -- non-mobile services on the same bills, net monthly amount

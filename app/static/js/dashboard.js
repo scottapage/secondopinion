@@ -2,7 +2,6 @@
   const { money, make, axisX, axisY, sparkline, SERIES, C, PROV, provColor, provBadge, scoreRing, countUp, initials } = SO;
   const $ = (id) => document.getElementById(id);
   const esc = (s) => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
-  const carrierName = { spark: 'Spark', one: 'One NZ', '2degrees': '2degrees' };
   let A = null, tab = 'overview', heatMetric = 'spend', sortKey = 'avg', sortDir = -1, search = '';
 
   async function load() {
@@ -29,13 +28,16 @@
   function renderHeader() {
     const k = A.kpi, provs = A.providers || [];
     const provText = provs.length > 1 ? provs.map(p => p.name).slice(0, -1).join(', ') + ' and ' + provs[provs.length - 1].name : (provs[0] ? provs[0].name : '');
-    $('headline').innerHTML = '<span class="big-num" data-count="' + k.monthly + '">$0</span> a month across ' + k.lines + ' line' + (k.lines === 1 ? '' : 's') + (provText ? ' with ' + esc(provText) : '') + '.';
+    const bbOnly = !k.lines;
+    $('headline').innerHTML = bbOnly ? '<span class="big-num" data-count="' + k.other_services + '">$0</span> a month on broadband' + (provText ? ' with ' + esc(provText) : '') + '.'
+      : '<span class="big-num" data-count="' + k.monthly + '">$0</span> a month across ' + k.lines + ' line' + (k.lines === 1 ? '' : 's') + (provText ? ' with ' + esc(provText) : '') + '.';
     const parts = [];
-    parts.push('That’s ' + money(k.annual) + ' a year on mobile');
+    parts.push(bbOnly ? 'That’s ' + money(k.other_services * 12) + ' a year' : 'That’s ' + money(k.annual) + ' a year on mobile');
     if (k.devices_month) parts.push(money(k.devices_month) + '/mth of it is phone repayments');
-    if (k.other_services) parts.push('plus ' + money(k.other_services) + '/mth of broadband and other services');
+    if (k.other_services && !bbOnly) parts.push('plus ' + money(k.other_services) + '/mth of broadband and other services');
+    document.querySelectorAll('#tabs button').forEach(b => { if (['people', 'fit'].includes(b.dataset.t)) b.classList.toggle('hidden', bbOnly); });
     $('subline').textContent = parts.join(' · ') + '. ' + k.bills + ' bill' + (k.bills === 1 ? '' : 's') + ', ' + A.month_labels[0] + (A.months.length > 1 ? ' to ' + A.month_labels[A.month_labels.length - 1] : '') + ', excl GST.';
-    $('provRow').innerHTML = provs.map(p => '<span class="prov-chip" style="--pc:' + provColor(p.code) + '"><i></i>' + esc(p.name) + ' <b>' + money(p.monthly) + '</b><span>' + p.lines + ' line' + (p.lines === 1 ? '' : 's') + (p.accounts > 1 ? ', ' + p.accounts + ' accounts' : '') + '</span></span>').join('')
+    $('provRow').innerHTML = provs.map(p => '<span class="prov-chip" style="--pc:' + provColor(p.code) + '"><i></i>' + esc(p.name) + ' <b>' + money(p.monthly) + '</b><span>' + (p.lines ? p.lines + ' line' + (p.lines === 1 ? '' : 's') : (p.services || 0) + ' broadband') + (p.accounts > 1 ? ', ' + p.accounts + ' accounts' : '') + '</span></span>').join('')
       + (provs.length > 1 ? '<span class="prov-note">Two providers means two bills, two logins and no team pricing across the whole team.</span>' : '');
     const s = A.score;
     $('scoreWrap').innerHTML = '<div class="score-ring">' + scoreRing(s.score, 148) + '<div class="score-txt"><b data-count="' + s.score + '" data-int="1">0</b><span>health score</span></div></div>' +
@@ -44,7 +46,7 @@
     const sw = A.switch || {};
     $('kpis').innerHTML = [
       ['Monthly run-rate', money(k.monthly), delta == null ? 'latest bill from each account' : (Math.abs(delta) < 1 ? 'no change' : '<span class="' + (delta > 0 ? 'delta-up' : 'delta-down') + '">' + (delta > 0 ? '+' : '') + money(delta) + '</span> vs previous bills'), true],
-      ['Average per line', money(k.per_line, 2), k.lines + ' active lines'],
+      bbOnly ? ['Broadband connections', (A.services || []).length, money(k.other_services, 2) + '/mth'] : ['Average per line', money(k.per_line, 2), k.lines + ' active lines'],
       ['Phones being paid off', money(sw.hardware_balance || 0), (A.devices || []).length + ' device' + ((A.devices || []).length === 1 ? '' : 's') + ', ' + money(k.devices_month, 2) + '/mth'],
       ['On 2degrees instead', money(sw.future_month || 0) + '<span class="tiny" style="display:inline">/mth</span>', (sw.saving_year > 0 ? 'save ' + money(sw.saving_year) + '/yr like-for-like' : 'like-for-like') + (sw.optimised_saving_year > sw.saving_year ? ', up to ' + money(sw.optimised_saving_year) + '/yr right-sized' : ''), false, 'orange'],
     ].map(x => '<div class="kpi' + (x[3] ? ' accent' : '') + (x[4] ? ' ' + x[4] : '') + '"><div class="label">' + x[0] + '</div><div class="value">' + x[1] + '</div><div class="sub">' + x[2] + '</div></div>').join('');
@@ -293,7 +295,7 @@
   function renderBills() {
     const inv = (A && A.invoices) || [];
     $('billTable').innerHTML = '<tr><th>File</th><th>Provider</th><th>Account</th><th>Period</th><th class="r">Total excl GST</th><th>Status</th></tr>' +
-      inv.slice().reverse().map(i => '<tr><td>' + (i.status === 'done' || i.status === 'duplicate' ? '<a href="/invoice/' + i.id + '.pdf" target="_blank">' + esc(i.filename) + '</a>' : esc(i.filename)) + '</td><td>' + (i.carrier ? provBadge(i.carrier, carrierName[i.carrier] || i.carrier) : '-') + '</td><td>' + esc(i.account_name || '') + '<span class="tiny">' + esc(i.account_number || '') + '</span></td><td>' + esc(i.period_month || '-') + '</td><td class="r num">' + money(i.total_excl_gst, 2) + '</td><td><span class="status ' + i.status + '">' + i.status + '</span>' + (i.error ? '<span class="tiny">' + esc(i.error) + '</span>' : '') + '</td></tr>').join('');
+      inv.slice().reverse().map(i => '<tr><td>' + (i.status === 'done' || i.status === 'duplicate' ? '<a href="/invoice/' + i.id + '.pdf" target="_blank">' + esc(i.filename) + '</a>' : esc(i.filename)) + '</td><td>' + (i.carrier ? provBadge(i.carrier, i.carrier_label) : '-') + '</td><td>' + esc(i.account_name || '') + '<span class="tiny">' + esc(i.account_number || '') + '</span></td><td>' + esc(i.period_month || '-') + '</td><td class="r num">' + money(i.total_excl_gst, 2) + '</td><td><span class="status ' + i.status + '">' + i.status + '</span>' + (i.error ? '<span class="tiny">' + esc(i.error) + '</span>' : '') + '</td></tr>').join('');
   }
 
   // ---- Add more bills from the dashboard

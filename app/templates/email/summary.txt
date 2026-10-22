@@ -5,4 +5,4 @@ You're spending {{ a.kpi.monthly|money }} a month (excl GST) across {{ a.kpi.lin
 {% for i in a.insights %}- {{ i.title }}: {{ i.headline }}
 {% endfor %}
 {% if registered %}View your full analysis: {{ cta_url }}{% else %}Create your free account to see the full analysis: {{ cta_url }}{% endif %}
-{% else %}We couldn't analyse the bill you sent. We currently support Spark, One NZ and 2degrees PDF bills.{% endif %}
+{% else %}We couldn't analyse the bill you sent. We read PDF mobile and broadband bills from any NZ provider - this one had no telco service we could find.{% endif %}

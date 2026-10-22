@@ -17,8 +17,10 @@ import traceback
 import pdfplumber
 
 from . import ai, db
+from .config import CARRIERS
 
-CATEGORIES = ["plan", "addon", "usage", "roaming", "hardware", "one_off", "discount", "account", "non_mobile", "other"]
+CATEGORIES = ["plan", "addon", "usage", "roaming", "hardware", "one_off", "discount", "account", "non_mobile", "non_telco",
+              "other"]
 
 NUM = {"type": ["number", "null"]}
 STR = {"type": "string"}  # empty string when not shown (union types are limited)
@@ -41,7 +43,8 @@ SCHEMA = {
     "type": "object",
     "properties": {
         "is_mobile_bill": {"type": "boolean"},
-        "carrier": {"type": "string", "enum": ["spark", "one", "2degrees", "other"]},
+        "carrier": {"type": "string", "enum": list(CARRIERS)},
+        "carrier_name": STR,
         "rejection_reason": STR,
         "account_name": STR,
         "account_number": STR,
@@ -120,19 +123,25 @@ SCHEMA = {
         },
         "notes": {"type": "string"},
     },
-    "required": ["is_mobile_bill", "carrier", "rejection_reason", "account_name", "account_number", "customer_name",
+    "required": ["is_mobile_bill", "carrier", "carrier_name", "rejection_reason", "account_name", "account_number", "customer_name",
                  "invoice_number", "invoice_date", "period_start", "period_end", "total_excl_gst", "gst",
                  "total_incl_gst", "lines", "account_charges", "services", "devices", "learned", "notes"],
     "additionalProperties": False,
 }
 
-BASE_PROMPT = """You extract structured billing data from New Zealand business telco invoices (mobile and broadband).
-Supported carriers: Spark ("spark"), One NZ - formerly Vodafone NZ ("one"), and 2degrees ("2degrees").
+BASE_PROMPT = """You extract structured billing data from New Zealand business and consumer telco invoices: mobile and/or
+broadband (fibre, wireless, satellite) and landlines, from ANY provider. Provider codes: spark (Spark, incl. Spark
+Business), one (One NZ, formerly Vodafone NZ), 2degrees, skinny, mercury, contact (Contact Energy), electric_kiwi,
+nova (Nova Energy), trustpower, genesis, kogan, slingshot, orcon, flip, now, voyager, sky (Sky Broadband), compass,
+myrepublic, wireless_nation, starlink, zeronet, quic, bigpipe, vocus, rocket (Rocket Mobile), warehouse (Warehouse
+Mobile). Anything else: carrier="other" with the provider's name in carrier_name.
 
 Rules:
-- is_mobile_bill is true for any telco invoice with mobile and/or broadband services. If the document is not a
-  telco invoice, set is_mobile_bill=false and explain in rejection_reason.
-- If it is a telco invoice from another provider, set carrier="other".
+- is_mobile_bill is true for ANY invoice that bills a telecommunications service: mobile lines, broadband, wireless
+  broadband, satellite or landlines - including an energy retailer's bill (Mercury, Contact, Electric Kiwi, Nova,
+  Genesis, Trustpower...) that has a broadband line on it. A broadband-only bill is still true: `lines` is empty
+  and `services` holds the broadband. Set is_mobile_bill=false (with rejection_reason) only when the document has
+  no telecommunications service at all, or is not an invoice.
 - All money is NZD and EXCLUDING GST. If the bill only shows GST-inclusive amounts, divide by 1.15.
 - Discounts and credits are negative amounts with category "discount".
 - Dates are ISO YYYY-MM-DD. period_start/period_end describe the main service period being billed.
@@ -141,30 +150,62 @@ Rules:
 - Each line's `charges` must add up to its total_excl_gst. Charges not tied to a number go in account_charges.
 - Charge categories: plan (recurring plan/access fee), addon (recurring bolt-ons, extra data packs, insurance),
   usage (pay-as-you-go calls/texts/data/premium/international calls from NZ), roaming (any usage or day passes overseas),
-  hardware (device/handset repayments), one_off (connection, SIM, admin fees), discount, account (account-level fees),
-  non_mobile (anything that is not a mobile service but is on the same bill - broadband, fibre, wireless broadband,
-  landlines, phone systems - INCLUDING discounts and credits tied to those services, as negative amounts), other.
-  Put non_mobile charges in account_charges.
-- services: one entry per non-mobile service (each broadband connection, landline...) with its address, plan name,
-  speed if stated (e.g. "Fibre 900", "Wireless"), and net monthly amount after the discounts tied to it. This
-  summarises the non_mobile account_charges; it does not replace them. Empty strings where not shown.
+  hardware (device/handset repayments), one_off (connection, SIM, admin fees), discount, account (account-level fees,
+  late payment fees), non_mobile (telecommunications services that are not mobile but are on the same bill -
+  broadband, fibre, wireless broadband, satellite, landlines, phone systems, modem/router rental - INCLUDING discounts
+  and credits tied to those services, as negative amounts), non_telco (electricity, gas, LPG, water, solar, EV
+  charging, insurance and any other non-telecommunications charge on a combined bill, including their discounts and
+  credits), other. Put non_mobile and non_telco charges in account_charges.
+- services: one entry per non-mobile telecommunications service (each broadband connection, landline...) with its
+  address, plan name, speed if stated (e.g. "Fibre 900", "Fibre Max", "Wireless", "Starlink"), and net monthly amount
+  after the discounts tied to it. This summarises the non_mobile account_charges; it does not replace them. Energy
+  and other non_telco charges never appear in services. Empty strings where not shown.
+- total_excl_gst / gst / total_incl_gst are the invoice's own totals (they include any non_telco charges; the
+  categories keep them apart).
 - data in MB (1 GB = 1024 MB). data_allowance_mb = -1 for unlimited, null if not stated.
 - voice_minutes: total call minutes used on the line. sms_count: texts sent.
 - devices: any handset/hardware repayment plans, with remaining payments/balance where printed.
-- `learned`: short reusable observations about this carrier's bill format that would help extract the next bill
-  from the same carrier - e.g. kind="plan" key="<plan name>" value="<monthly price excl GST and allowance>",
+- `learned`: short reusable observations about this provider's bill format that would help extract the next bill
+  from the same provider - e.g. kind="plan" key="<plan name>" value="<monthly price excl GST and allowance>",
   kind="charge" key="<charge description pattern>" value="<category>", kind="note" for layout tips. Max 15.
 - Text fields that are not shown on the bill are empty strings. plan_cost is 0 if not itemised.
 - Be exhaustive: include every line on the bill, even if it has no usage. Never invent numbers."""
 
 
+CARRIER_PATTERNS = {
+    "spark": r"spark new zealand|spark\.co\.nz|spark business",
+    "one": r"one new zealand|one\.nz|vodafone",
+    "2degrees": r"2degrees",
+    "skinny": r"skinny\.co\.nz|skinny mobile|skinny broadband",
+    "mercury": r"mercury\.co\.nz|mercury nz|mercury energy",
+    "contact": r"contact\.co\.nz|contact energy",
+    "electric_kiwi": r"electric kiwi|electrickiwi",
+    "nova": r"nova energy|novaenergy",
+    "trustpower": r"trustpower",
+    "genesis": r"genesis energy|genesisenergy",
+    "kogan": r"kogan",
+    "slingshot": r"slingshot",
+    "orcon": r"orcon",
+    "flip": r"flip\.co\.nz",
+    "now": r"nownz|now\.nz|now broadband",
+    "voyager": r"voyager",
+    "sky": r"sky broadband|sky\.co\.nz|sky network television",
+    "compass": r"compass communications|compass\.net\.nz",
+    "myrepublic": r"myrepublic",
+    "wireless_nation": r"wireless nation",
+    "starlink": r"starlink",
+    "zeronet": r"zeronet",
+    "quic": r"quic\.nz",
+    "bigpipe": r"bigpipe",
+    "vocus": r"vocus",
+    "rocket": r"rocket mobile",
+    "warehouse": r"warehouse mobile",
+}
+
+
 def detect_carrier(text):
     t = (text or "").lower()
-    scores = {
-        "spark": len(re.findall(r"spark new zealand|spark\.co\.nz|spark business", t)),
-        "one": len(re.findall(r"one new zealand|one\.nz|vodafone", t)),
-        "2degrees": len(re.findall(r"2degrees", t)),
-    }
+    scores = {c: len(re.findall(pat, t)) for c, pat in CARRIER_PATTERNS.items()}
     best = max(scores, key=scores.get)
     return best if scores[best] else None
 
@@ -275,7 +316,7 @@ def extract(path, text, carrier_hint, invoice_id):
         data, model = _run_extraction(path, text, carrier_hint, provider, invoice_id)
 
     ok, diff = reconcile(data)
-    if data.get("is_mobile_bill") and data.get("carrier") != "other" and not ok and diff is not None:
+    if data.get("is_mobile_bill") and not ok and diff is not None:
         # Self-correction pass with the discrepancy pointed out (always on Claude, higher effort)
         fb = (f"A previous extraction of this bill produced line totals plus account charges that differ from the "
               f"invoice total (excl GST) by {diff:+.2f}. Re-check every line and charge carefully - look for missed "
@@ -378,10 +419,10 @@ def store(invoice_id, data):
                  d.get("payments_remaining"), d.get("remaining_balance")),
             )
         c.execute(
-            "UPDATE invoices SET carrier=?, account_name=?, account_number=?, customer_name=?, invoice_number=?,"
+            "UPDATE invoices SET carrier=?, carrier_name=?, account_name=?, account_number=?, customer_name=?, invoice_number=?,"
             " invoice_date=?, period_start=?, period_end=?, period_month=?, total_excl_gst=?, gst=?, total_incl_gst=?,"
             " line_count=?, extraction_json=? WHERE id=?",
-            (data.get("carrier"), data.get("account_name"), data.get("account_number"), data.get("customer_name"),
+            (data.get("carrier"), data.get("carrier_name"), data.get("account_name"), data.get("account_number"), data.get("customer_name"),
              data.get("invoice_number"), data.get("invoice_date"), data.get("period_start"), data.get("period_end"),
              month, data.get("total_excl_gst"), data.get("gst"), data.get("total_incl_gst"),
              len(data.get("lines", [])), json.dumps(data), invoice_id),
@@ -401,16 +442,14 @@ def process_invoice(invoice_id):
         hint = detect_carrier(text)
         data, provider, model, ok, diff = extract(inv["path"], text, hint, invoice_id)
 
-        if not data.get("is_mobile_bill"):
-            reason = data.get("rejection_reason") or "This doesn't look like a mobile phone bill."
+        if not data.get("is_mobile_bill") or not (data.get("lines") or data.get("services")):
+            reason = data.get("rejection_reason") or "We couldn't find a mobile or broadband service on this bill."
             db.x("UPDATE invoices SET status='rejected', error=?, processed_at=?, provider=?, model=? WHERE id=?",
                  (reason, time.time(), provider, model, invoice_id))
+            _alert(invoice_id)
             return
-        if data.get("carrier") == "other":
-            db.x("UPDATE invoices SET status='rejected', error=?, processed_at=?, provider=?, model=? WHERE id=?",
-                 ("We currently analyse Spark, One NZ and 2degrees bills only.", time.time(), provider, model,
-                  invoice_id))
-            return
+        if data.get("carrier") not in CARRIERS:
+            data["carrier"] = "other"
 
         # Same bill already analysed for this owner?
         owner_clause, owner_val = ("owner_email=?", inv["owner_email"]) if inv["owner_email"] else \

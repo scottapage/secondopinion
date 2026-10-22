@@ -6,7 +6,7 @@ all of which are on the bill. The user's own name and a delivery address (or an 
 import re
 
 from . import db
-from .config import CARRIERS
+from .config import carrier_label
 
 GB = 1024.0
 
@@ -285,7 +285,7 @@ def switch_plan(lines, services, devices, n_months):
             current = (p["plan_cost"] or 0) + max(p["addon_net_m"], 0)  # plan + add-ons actually paid
             out_lines.append({
                 "number": p["number"], "display": p["display"], "label": p["label"], "user": p["user"],
-                "carrier": CARRIERS.get(p["carrier"], p["carrier"]), "carrier_code": p["carrier"],
+                "carrier": p.get("carrier_label") or carrier_label(p["carrier"]), "carrier_code": p["carrier"],
                 "account": p["account"], "account_name": p.get("account_name"),
                 "plan": p["plan"], "current": round(current, 2), "extras": round(p["extras_m"], 2),
                 "rec": name, "role": role, "price": price, "why": why, "saving": round(current - price, 2),
@@ -336,6 +336,16 @@ def switch_plan(lines, services, devices, n_months):
 
 def health_score(lines, switch, non_mobile_m, mobile_m, providers, account_fees_m):
     """0-100 with four explainable parts. Higher is better."""
+    if not lines and switch["services"]:
+        cur = sum(s["current"] for s in switch["services"]) or 1
+        fut = sum(s["price"] for s in switch["services"])
+        over = max(cur - fut, 0) / cur
+        total = round(100 * max(0, 1 - over / 0.3))
+        grade = "Excellent" if total >= 85 else "Good" if total >= 70 else "Room to improve" if total >= 50 else "Needs attention"
+        return {"score": total, "grade": grade, "parts": [
+            {"key": "price", "label": "Broadband pricing", "score": total, "max": 100,
+             "note": f"Paying {over * 100:.0f}% above the closest 2degrees business plan" if over > 0.005
+             else "At or below current 2degrees pricing"}]}
     n = max(len(lines), 1)
     # Plan fit (25): share of lines not flagged
     flagged = sum(1 for p in lines if any(f in p["flags"] for f in ("idle", "oversized", "undersized")))

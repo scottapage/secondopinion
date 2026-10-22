@@ -337,7 +337,8 @@ MIGRATIONS = ["ALTER TABLE invoices ADD COLUMN learning_state TEXT",
               "ALTER TABLE plan_catalogue ADD COLUMN promo_text TEXT",
               "ALTER TABLE plan_catalogue ADD COLUMN promo_price REAL",
               "ALTER TABLE plan_catalogue ADD COLUMN promo_months INTEGER",
-              "ALTER TABLE plan_catalogue ADD COLUMN term_months INTEGER"]
+              "ALTER TABLE plan_catalogue ADD COLUMN term_months INTEGER",
+              "ALTER TABLE invoices ADD COLUMN carrier_name TEXT"]
 
 
 def init():

@@ -3,7 +3,7 @@ import re
 from collections import defaultdict
 
 from . import db, recommend
-from .config import CARRIERS
+from .config import carrier_label
 
 
 def scope_sql(email=None, session_id=None, alias="i"):
@@ -64,6 +64,8 @@ def build(email=None, session_id=None, account=None):
 
     months = sorted({i["period_month"] for i in done if i["period_month"]})
     inv_month = {i["id"]: i["period_month"] for i in done}
+    cname = {i["carrier"]: i["carrier_name"] for i in invs if i.get("carrier_name")}
+    lab = lambda code: carrier_label(code, cname.get(code))
 
     # Spend per month, by category
     cat_month = defaultdict(lambda: defaultdict(float))
@@ -71,12 +73,14 @@ def build(email=None, session_id=None, account=None):
         m = inv_month.get(c["invoice_id"])
         if m:
             cat_month[c["category"]][m] += c["amount"] or 0
-    # Headline figures are mobile only; broadband and other services on the same bill are reported separately
+    # Headline figures are mobile only; broadband and other telco services on the same bill are reported separately,
+    # and non-telco charges (power, gas on a combined bill) are left out altogether
     non_mobile = cat_month.pop("non_mobile", {})
+    cat_month.pop("non_telco", None)
     inv_nonmobile = defaultdict(float)
     acct_cat_month = defaultdict(lambda: defaultdict(float))  # account-level charges (no line)
     for c in charges:
-        if c["category"] == "non_mobile":
+        if c["category"] in ("non_mobile", "non_telco"):
             inv_nonmobile[c["invoice_id"]] += c["amount"] or 0
         elif c["line_id"] is None and inv_month.get(c["invoice_id"]):
             acct_cat_month[c["category"]][inv_month[c["invoice_id"]]] += c["amount"] or 0
@@ -100,6 +104,7 @@ def build(email=None, session_id=None, account=None):
         key = l["number"] or f"line-{l['id']}"
         p = per.setdefault(key, {
             "number": key, "display": fmt_number(key), "user": None, "plan": None, "carrier": l["carrier"],
+            "carrier_label": lab(l["carrier"]),
             "account": l["account_number"], "account_name": acct_name.get(l["account_number"]),
             "months": {}, "data": {}, "voice": {}, "allowance": None,
             "roaming": 0.0, "usage": 0.0, "addon": 0.0, "hardware": 0.0, "plan_cost": None, "plan_month": {},
@@ -150,7 +155,8 @@ def build(email=None, session_id=None, account=None):
         line_list.append(p)
     line_list.sort(key=lambda p: -p["avg"])
 
-    insights = _insights(line_list, devices, months, total_month)
+    svc_list = _services(svc_rows, months, lab)
+    insights = _insights(line_list, devices, months, total_month, svc_list)
     latest = months[-1] if months else None
     prev = months[-2] if len(months) > 1 else None
     # Current run-rate: each account's most recent bill (accounts are billed on different cycles)
@@ -171,7 +177,7 @@ def build(email=None, session_id=None, account=None):
     accounts = {}
     for i in all_done:
         k = (i["carrier"], i["account_number"])
-        a = accounts.setdefault(k, {"carrier": CARRIERS.get(i["carrier"], i["carrier"]), "carrier_code": i["carrier"],
+        a = accounts.setdefault(k, {"carrier": lab(i["carrier"]), "carrier_code": i["carrier"],
                                     "number": i["account_number"], "name": i["account_name"], "bills": 0,
                                     "lines": 0, "monthly": 0.0, "months": set()})
         a["bills"] += 1
@@ -188,15 +194,19 @@ def build(email=None, session_id=None, account=None):
     # Provider summary (a customer may be with several)
     providers = {}
     for p in line_list:
-        pr = providers.setdefault(p["carrier"], {"code": p["carrier"], "name": CARRIERS.get(p["carrier"], p["carrier"]),
-                                                 "lines": 0, "monthly": 0.0, "accounts": set()})
+        pr = providers.setdefault(p["carrier"], {"code": p["carrier"], "name": lab(p["carrier"]),
+                                                 "lines": 0, "services": 0, "monthly": 0.0, "accounts": set()})
         pr["lines"] += 1
         pr["monthly"] += p["avg"]
         pr["accounts"].add(p["account"])
+    for sv in svc_list:
+        pr = providers.setdefault(sv["carrier_code"], {"code": sv["carrier_code"], "name": sv["carrier"],
+                                                       "lines": 0, "services": 0, "monthly": 0.0, "accounts": set()})
+        pr["services"] += 1
+        pr["monthly"] += sv["avg"]
     for pr in providers.values():
-        pr["accounts"] = len(pr["accounts"])
+        pr["accounts"] = len(pr["accounts"] or {i["account_number"] for i in all_done if i["carrier"] == pr["code"]})
         pr["monthly"] = round(pr["monthly"], 2)
-    svc_list = _services(svc_rows, months)
 
     # The bill decoded: what the money actually is, per month
     dec = {k: defaultdict(float) for k in ("plans", "addons", "extras", "devices", "fees")}
@@ -241,6 +251,7 @@ def build(email=None, session_id=None, account=None):
         "latest": latest,
         "kpi": {
             "monthly": round(monthly_now, 2),
+            "telco_month": round(monthly_now + sum(s["avg"] for s in svc_list), 2),
             "monthly_prev": round(monthly_prev, 2) if have_prev else None,
             "lines": len(active_lines),
             "per_line": monthly_now / len(active_lines) if active_lines else 0,
@@ -270,7 +281,7 @@ def _line_json(p, months):
     return {
         "number": p["number"], "display": p["display"], "label": p["label"], "short": p["short"], "user": p["user"],
         "plan": p["plan"],
-        "carrier": CARRIERS.get(p["carrier"], p["carrier"]), "carrier_code": p["carrier"], "account": p["account"],
+        "carrier": p["carrier_label"], "carrier_code": p["carrier"], "account": p["account"],
         "account_name": p.get("account_name"), "plan_cost": p["plan_cost"],
         "allowance_inferred": bool(p.get("allowance_inferred")),
         "avg": round(p["avg"], 2), "latest": p["latest"],
@@ -285,12 +296,14 @@ def _line_json(p, months):
     }
 
 
-def _services(rows, months):
+def _services(rows, months, lab=carrier_label):
     by = {}
     for r in sorted(rows, key=lambda r: r["period_month"] or ""):
-        key = ((r["address"] or "").lower().strip(), r["service_type"])
-        s = by.setdefault(key, {"type": r["service_type"], "address": r["address"], "carrier": CARRIERS.get(
-            r["carrier"], r["carrier"]), "carrier_code": r["carrier"], "plan": None, "speed": None, "months": {}})
+        key = ((r["address"] or "").lower().strip(), r["service_type"], r["carrier"])
+        s = by.setdefault(key, {"type": r["service_type"], "address": r["address"], "carrier": lab(r["carrier"]),
+                                "carrier_code": r["carrier"], "plan": None, "speed": None, "months": {},
+                                "src": None})
+        s["src"] = {"invoice_id": r["invoice_id"], "month": r["period_month"], "amount": r["amount"]}
         s["plan"] = r["plan_name"] or s["plan"]
         s["speed"] = r["speed"] or s["speed"]
         if r["period_month"]:
@@ -325,9 +338,32 @@ def _devices(devices, latest):
     return out
 
 
-def _insights(lines, devices, months, total_month):
+def _broadband_insight(services):
+    items, saving, now = [], 0.0, 0.0
+    for s in services:
+        fam, why = recommend.pick_broadband(s)
+        name, price, promo = recommend.plan_for(fam)
+        now += s["avg"]
+        diff = s["avg"] - (price or 0)
+        saving += max(diff, 0)
+        items.append({"label": s["address"] or s["type"], "number": s["carrier"],
+                      "value": fmt_money(s["avg"], 2) + "/mth",
+                      "detail": f"{s['plan'] or s['type']} - 2degrees {name} is {fmt_money(price, 2)}"
+                                + (f" ({promo['text']})" if promo else "")})
+    n = len(services)
+    return {"key": "broadband", "title": "Broadband",
+            "headline": (f"Broadband could be {fmt_money(saving)}/mth cheaper" if saving >= 1 else
+                         f"{fmt_money(now)}/mth on {n} broadband connection{'s' if n != 1 else ''}"),
+            "body": "Each connection against the closest current 2degrees business broadband plan, with any promotion"
+                    " running on 2degrees.nz right now.",
+            "saving": round(saving, 2), "items": items}
+
+
+def _insights(lines, devices, months, total_month, services=()):
     out = []
     n_months = max(len(months), 1)
+    if not lines:
+        return [_broadband_insight(services)] if services else []
 
     has_usage = any(p["avg_data"] is not None for p in lines)
     idle = [p for p in lines if (p["avg_data"] is not None and p["avg_data"] < 200)
@@ -418,6 +454,8 @@ def _insights(lines, devices, months, total_month):
                                        (("roaming", p["roaming_m"]), ("extras", p["usage_m"]),
                                         ("add-ons", p["addon_net_m"])) if v > 0.005)} for p in leak_lines[:12]],
     })
+    if services:
+        out.append(_broadband_insight(services))
     return out
 
 

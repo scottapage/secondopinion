@@ -11,14 +11,14 @@ import time
 import traceback
 
 from . import ai, analysis, db
-from .config import CARRIERS
+from .config import carrier_label
 
 # ---------- 1. Independent audit ----------
 
 AUDIT_PROMPT = """You are auditing a structured extraction of a New Zealand telco invoice (mobile and/or broadband)
 against the original PDF. Another model produced the extraction. Check it line by line against the document:
 every mobile line present, numbers and names right, plan names and prices right, each charge in the right
-category (non-mobile services such as broadband must be category non_mobile and listed in `services`),
+category (non-mobile telco services such as broadband must be category non_mobile and listed in `services`; electricity, gas and other non-telco charges on a combined bill are non_telco),
 discounts negative, totals and GST right, all amounts excluding GST.
 
 Return:
@@ -99,12 +99,12 @@ def guide(carrier):
 
 def _guide_block(carrier):
     g = guide(carrier) if carrier else ""
-    return f"\n\nReference guide to {CARRIERS.get(carrier, carrier)} bill formats (built from earlier bills):\n{g}" if g else ""
+    return f"\n\nReference guide to {carrier_label(carrier)} bill formats (built from earlier bills):\n{g}" if g else ""
 
 
 def update_guide(invoice_id, carrier, text, data, audit_result):
     current = db.q1("SELECT * FROM format_guides WHERE carrier=?", (carrier,))
-    msg = (f"Carrier: {CARRIERS.get(carrier, carrier)}\n\nCurrent guide:\n{current['guide'] if current else '(none yet)'}"
+    msg = (f"Carrier: {carrier_label(carrier)}\n\nCurrent guide:\n{current['guide'] if current else '(none yet)'}"
            f"\n\nAudit corrections on this bill: {json.dumps(audit_result.get('corrections', []))}"
            f"\nAuditor's format observations: {json.dumps(audit_result.get('format_observations', []))}"
            f"\n\nFinal extraction:\n{json.dumps(data, separators=(',', ':'))[:20000]}"
@@ -177,7 +177,7 @@ def catalogue_text(providers=None):
     out = []
     for r in rows:
         size = ("unlimited" if r["data_gb"] == -1 else f"{r['data_gb']:g}GB") if r["data_gb"] is not None else ""
-        out.append(f"- {CARRIERS.get(r['provider'], r['provider'])} {r['category']}: {r['plan_name']} "
+        out.append(f"- {carrier_label(r['provider'])} {r['category']}: {r['plan_name']} "
                    f"${r['price_excl_gst'] or 0:.2f}/mth excl GST {size} {r['speed'] or ''}. "
                    f"Includes: {r['inclusions'] or '-'}. Conditions: {r['conditions'] or '-'}")
     return "\n".join(out)
@@ -188,7 +188,7 @@ def benefits_text(providers):
     rows = [r for r in rows if r["provider"] in providers]
     if not rows:
         return "(no benefits research yet)"
-    return "\n".join(f"- {CARRIERS.get(r['provider'], r['provider'])} [{r['category']}] {r['title']}: {r['value']} - "
+    return "\n".join(f"- {carrier_label(r['provider'])} [{r['category']}] {r['title']}: {r['value']} - "
                      f"{(r['detail'] or '')[:200]} (conditions: {(r['conditions'] or '')[:120]})" for r in rows)
 
 

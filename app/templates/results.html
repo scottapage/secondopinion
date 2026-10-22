@@ -35,7 +35,7 @@
       <div class="card"><div class="card-head"><div><h3>Where it flows</h3><p class="small muted">Provider &rarr; what you pay for &rarr; who</p></div></div><div id="sankeyChart" class="chart"></div></div>
     </div>
 
-    <div class="card" style="margin-top:20px">
+    <div class="card mobile-only" style="margin-top:20px">
       <div class="card-head">
         <div><h3>Spend and usage by person</h3><p class="small muted">Pick the lines to compare. All amounts exclude GST.</p></div>
         <div class="seg" id="metricSeg"><button data-m="spend" class="on">Spend</button><button data-m="data">Data (GB)</button><button data-m="share">Share of bill</button></div>
@@ -45,7 +45,7 @@
     </div>
 
     <div class="card" style="margin-top:20px">
-      <div class="card-head"><div><h3>Every line at a glance</h3><p class="small muted">Sorted by average monthly cost.</p></div></div>
+      <div class="card-head"><div><h3 id="lineTableTitle">Every line at a glance</h3><p class="small muted">Sorted by average monthly cost.</p></div></div>
       <div class="table-wrap"><table class="data" id="lineTable"></table></div>
     </div>
 
@@ -67,7 +67,7 @@
     <div class="insights" id="insights"></div>
 
     {% if example %}
-    <div class="band" style="margin-top:40px"><div><h2>Ready for your own second opinion?</h2><p>Drop in one or more recent Spark, One NZ or 2degrees bills. It takes about a minute, and you'll see your own version of this page.</p></div>
+    <div class="band" style="margin-top:40px"><div><h2>Ready for your own second opinion?</h2><p>Drop in one or more recent mobile or broadband bills from any NZ provider. It takes about a minute, and you'll see your own version of this page.</p></div>
       <div class="actions"><a class="btn lg" href="/">Analyse my bills</a><a href="mailto:{{ mail_address }}" style="color:#B3E2F3;text-align:center;font-size:14px">or email them to {{ mail_address }}</a></div></div>
     {% else %}
     <div class="band" style="margin-top:40px">
@@ -92,7 +92,7 @@
 
   <div id="nothing" class="hidden">
     <h2>We couldn't analyse those files</h2>
-    <p class="lede">We currently support PDF mobile bills from Spark, One NZ and 2degrees.</p>
+    <p class="lede">We read PDF mobile and broadband bills from any NZ provider. These files didn't have a telco service we could find.</p>
     <div class="progress-list" id="problems" style="margin-top:24px;max-width:720px"></div>
     <a class="btn" href="/" style="margin-top:24px">Try another bill</a>
   </div>

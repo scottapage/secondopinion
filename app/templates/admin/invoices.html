@@ -3,7 +3,7 @@
 <form class="filters" style="margin-bottom:18px">
   <input type="text" name="qs" value="{{ qs }}" placeholder="Search email, account, file" style="max-width:280px;border-radius:999px;padding:8px 14px;font-size:14px">
   <select name="status"><option value="">Any status</option>{% for s in ['queued','processing','done','duplicate','rejected','failed'] %}<option {{ 'selected' if status == s }}>{{ s }}</option>{% endfor %}</select>
-  <select name="carrier"><option value="">Any carrier</option>{% for c in ['spark','one','2degrees'] %}<option value="{{ c }}" {{ 'selected' if carrier == c }}>{{ c|carrier }}</option>{% endfor %}</select>
+  <select name="carrier"><option value="">Any carrier</option>{% for c in carriers %}<option value="{{ c }}" {{ 'selected' if carrier == c }}>{{ c|carrier }}</option>{% endfor %}</select>
   <button class="btn sm">Filter</button>
 </form>
 <div class="card">{% include "admin/_invoice_table.html" %}</div>

@@ -4,11 +4,10 @@
   const TICK = '<svg class="tick" viewBox="0 0 20 20"><circle cx="10" cy="10" r="10" fill="#E3F4EC"/><path d="M6 10.5l2.6 2.6L14 7.6" fill="none" stroke="#00875A" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
   const WARN = '<svg class="tick" viewBox="0 0 20 20"><circle cx="10" cy="10" r="10" fill="#FEF2E5"/><path d="M10 5.5v5.5M10 14v.3" stroke="#F1600D" stroke-width="2.2" stroke-linecap="round"/></svg>';
   const esc = (s) => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
-  const carrierName = { spark: 'Spark', one: 'One NZ', '2degrees': '2degrees' };
 
   function progressRow(i) {
     let icon = '<span class="spinner"></span>', meta = i.status === 'queued' ? 'Waiting...' : 'Reading the bill...';
-    if (i.status === 'done') { icon = TICK; meta = [carrierName[i.carrier], i.account_name, i.line_count + ' lines', money(i.total_excl_gst, 2)].filter(Boolean).join(' · '); }
+    if (i.status === 'done') { icon = TICK; meta = [i.carrier_label || SO.provName(i.carrier), i.account_name, i.line_count ? i.line_count + ' line' + (i.line_count === 1 ? '' : 's') : 'broadband', money(i.total_excl_gst, 2)].filter(Boolean).join(' · '); }
     if (i.status === 'duplicate') { icon = TICK; meta = 'Already analysed'; }
     if (i.status === 'rejected' || i.status === 'failed') { icon = WARN; meta = i.error || 'Could not be read'; }
     return '<div class="prog">' + icon + '<div style="flex:1;min-width:0"><div class="name">' + esc(i.filename) + '</div><div class="meta">' + esc(meta) + '</div></div></div>';
@@ -38,19 +37,21 @@
     $('processing').classList.add('hidden'); $('analysis').classList.remove('hidden');
     const k = A.kpi, provs = A.providers || [], sw = A.switch || {};
     const provText = provs.length > 1 ? provs.map(p => p.name).slice(0, -1).join(', ') + ' and ' + provs[provs.length - 1].name : (provs[0] ? provs[0].name : '');
-    $('headline').innerHTML = 'You spend <span class="big-num" data-count="' + k.monthly + '">$0</span> a month across ' + k.lines + ' line' + (k.lines === 1 ? '' : 's') + (provText ? ' with ' + esc(provText) : '') + '.';
-    const parts = ['That\u2019s ' + money(k.annual) + ' a year on mobile'];
+    const bbOnly = !k.lines;
+    $('headline').innerHTML = bbOnly ? 'You spend <span class="big-num" data-count="' + k.other_services + '">$0</span> a month on broadband' + (provText ? ' with ' + esc(provText) : '') + '.'
+      : 'You spend <span class="big-num" data-count="' + k.monthly + '">$0</span> a month across ' + k.lines + ' line' + (k.lines === 1 ? '' : 's') + (provText ? ' with ' + esc(provText) : '') + '.';
+    const parts = [bbOnly ? 'That\u2019s ' + money(k.other_services * 12) + ' a year' : 'That\u2019s ' + money(k.annual) + ' a year on mobile'];
     if (k.devices_month) parts.push(money(k.devices_month) + '/mth of it is phone repayments');
-    if (k.other_services) parts.push('plus ' + money(k.other_services) + '/mth of broadband and other services');
+    if (k.other_services && !bbOnly) parts.push('plus ' + money(k.other_services) + '/mth of broadband and other services');
     $('subline').textContent = parts.join(' \u00b7 ') + '. ' + k.bills + ' bill' + (k.bills === 1 ? '' : 's') + ', ' + A.month_labels[0] + (A.months.length > 1 ? ' to ' + A.month_labels[A.month_labels.length - 1] : '') + ', excl GST.';
-    $('provRow').innerHTML = provs.map(p => '<span class="prov-chip" style="--pc:' + provColor(p.code) + '"><i></i>' + esc(p.name) + ' <b>' + money(p.monthly) + '</b><span>' + p.lines + ' line' + (p.lines === 1 ? '' : 's') + '</span></span>').join('');
+    $('provRow').innerHTML = provs.map(p => '<span class="prov-chip" style="--pc:' + provColor(p.code) + '"><i></i>' + esc(p.name) + ' <b>' + money(p.monthly) + '</b><span>' + (p.lines ? p.lines + ' line' + (p.lines === 1 ? '' : 's') : (p.services || 0) + ' broadband') + '</span></span>').join('');
     const s = A.score;
     $('scoreWrap').innerHTML = '<div class="score-ring">' + scoreRing(s.score, 148) + '<div class="score-txt"><b data-count="' + s.score + '" data-int="1">0</b><span>health score</span></div></div>' +
       '<div class="score-parts"><div class="grade">' + esc(s.grade) + '</div>' + s.parts.map(p => '<div class="sp"><div class="sp-h"><span>' + esc(p.label) + '</span><b>' + p.score + '/' + p.max + '</b></div><div class="sp-bar"><i style="width:' + (100 * p.score / p.max) + '%"></i></div>' + (SO_EXAMPLE ? '<div class="sp-n">' + esc(p.note) + '</div>' : '') + '</div>').join('') + (SO_EXAMPLE ? '' : '<div class="sp-n" style="margin-top:8px">Create an account to see what\u2019s behind each score.</div>') + '</div>';
     const delta = k.monthly_prev != null ? (k.monthly - k.monthly_prev) : null;
     $('kpis').innerHTML = [
       ['Monthly run-rate', money(k.monthly), delta == null ? 'latest bill from each account' : (Math.abs(delta) < 1 ? '<span>No change</span>' : '<span class="' + (delta > 0 ? 'delta-up' : 'delta-down') + '">' + (delta > 0 ? '+' : '') + money(delta) + '</span>') + ' vs previous bills', true],
-      ['Mobile lines', k.lines, 'across ' + A.accounts.length + ' account' + (A.accounts.length === 1 ? '' : 's')],
+      bbOnly ? ['Broadband connections', (A.services || []).length, 'across ' + A.accounts.length + ' account' + (A.accounts.length === 1 ? '' : 's')] : ['Mobile lines', k.lines, 'across ' + A.accounts.length + ' account' + (A.accounts.length === 1 ? '' : 's')],
       ['Phones being paid off', money(sw.hardware_balance || 0), (A.devices || []).length + ' device' + ((A.devices || []).length === 1 ? '' : 's')],
       ['On 2degrees instead', money(sw.future_month || 0) + '<span class="tiny" style="display:inline">/mth</span>', (sw.saving_year > 0 ? 'save ' + money(sw.saving_year) + '/yr like-for-like' : 'like-for-like') + (sw.optimised_saving_year > sw.saving_year ? ', up to ' + money(sw.optimised_saving_year) + '/yr right-sized' : ''), false, 'orange'],
     ].map(x => '<div class="kpi' + (x[3] ? ' accent' : '') + (x[4] ? ' ' + x[4] : '') + '"><div class="label">' + x[0] + '</div><div class="value">' + x[1] + '</div><div class="sub">' + x[2] + '</div></div>').join('');
@@ -63,8 +64,15 @@
     renderSankey();
     countUp(document);
 
-    A.lines.slice(0, Math.min(6, A.lines.length)).forEach(l => selected.add(l.number));
-    renderChips(); renderChart(); renderTable(); renderInsights();
+    if (bbOnly) {
+      document.querySelectorAll('.mobile-only').forEach(el => el.classList.add('hidden'));
+      $('lineTable').innerHTML = '<tr><th>Service</th><th>Provider</th><th>Address</th><th>Plan</th><th class="r">Avg / month</th></tr>' + (A.services || []).map(s => '<tr><td>' + esc(s.type) + '</td><td>' + provBadge(s.carrier_code, s.carrier) + '</td><td>' + esc(s.address || '-') + '</td><td>' + esc(s.plan || '-') + (s.speed ? '<span class="tiny">' + esc(s.speed) + '</span>' : '') + '</td><td class="r num"><b>' + money(s.avg, 2) + '</b></td></tr>').join('');
+      $('lineTableTitle').textContent = 'Your broadband';
+    } else {
+      A.lines.slice(0, Math.min(6, A.lines.length)).forEach(l => selected.add(l.number));
+      renderChips(); renderChart(); renderTable();
+    }
+    renderInsights();
     const facts = (A.notes || []).filter(n => n.kind === 'fact'), plainNotes = (A.notes || []).filter(n => n.kind !== 'fact');
     if (facts.length && facts[0].body) {
       $('factsCard').classList.remove('hidden');
