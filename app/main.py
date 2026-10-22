@@ -965,3 +965,11 @@ def setup_dossier(token: str = "", email: str = ""):
     data, a = dossier.build_xlsx(email.lower())
     wb = load_workbook(io.BytesIO(data))
     return {ws.title: [list(r) for r in ws.iter_rows(values_only=True)] for ws in wb.worksheets}
+
+
+@app.post("/setup/dossier-send")
+def setup_dossier_send(token: str = Form(...), email: str = Form(...)):
+    if not SETUP_TOKEN or token != SETUP_TOKEN:
+        raise HTTPException(404)
+    background(dossier.send, email.lower())
+    return {"ok": True, "to": db.get_setting("sales_email")}
