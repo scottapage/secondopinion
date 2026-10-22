@@ -1,6 +1,9 @@
 """Plan catalogue agent: Claude browses each provider's website and records their current business
 mobile and broadband plans, including what's in them (included value), so analyses can compare like for like."""
 import json
+import re
+import subprocess
+import sys
 import time
 import traceback
 
@@ -27,6 +30,14 @@ For every distinct business {category} plan currently on sale, record:
   sharing/pooling, extra SIMs, hotspot, landline, router, static IP, support level, Microsoft 365 etc.
 - conditions: term/contract, minimum number of lines, multi-line or bundle discounts, promo end dates, BYO vs device
 - source_url: the page you got it from
+- promo_text / promo_price_excl_gst / promo_months / term_months: any CURRENT promotion on the plan, e.g.
+  "Half price for your first 6 months on a 12-month term" -> promo_price = half the price, promo_months = 6,
+  term_months = 12; "3 months free on a 24 month term" -> promo_price = 0, promo_months = 3, term_months = 24.
+  Use the business version of the plan. promo_months = 0 and promo_text = "" when there is no promotion.
+
+Many provider plan pages draw their plan cards with JavaScript, so web_fetch returns a page with no prices. When
+that happens, call render_page with the same URL: it loads the page in a real browser and returns the visible text,
+including the cards, prices, strike-through list prices and promotion banners.
 
 Include volume tiers / team plans as separate entries. When you have finished, call save_plans exactly once with
 the complete list. If the site blocks you, save what you could verify and say so in notes."""
@@ -48,9 +59,13 @@ SAVE_TOOL = {
                     "inclusions": {"type": "string"},
                     "conditions": {"type": "string"},
                     "source_url": {"type": "string"},
+                    "promo_text": {"type": "string"},
+                    "promo_price_excl_gst": {"type": "number"},
+                    "promo_months": {"type": "integer"},
+                    "term_months": {"type": "integer"},
                 },
                 "required": ["plan_name", "price_excl_gst", "data_gb", "speed", "inclusions", "conditions",
-                             "source_url"],
+                             "source_url", "promo_text", "promo_price_excl_gst", "promo_months", "term_months"],
                 "additionalProperties": False,
             }},
             "notes": {"type": "string"},
@@ -61,46 +76,95 @@ SAVE_TOOL = {
 }
 
 
-def refresh(provider, category):
-    """Run the agent for one provider/category. Returns the number of plans saved."""
+RENDER_TOOL = {
+    "name": "render_page",
+    "description": "Load a URL in a headless browser (JavaScript runs) and return the page's visible text, including "
+                   "plan cards, prices and promotion banners that plain fetching misses.",
+    "strict": True,
+    "input_schema": {"type": "object", "properties": {"url": {"type": "string", "format": "uri"}},
+                     "required": ["url"], "additionalProperties": False},
+}
+
+RENDER_SCRIPT = """
+import sys, json
+from playwright.sync_api import sync_playwright
+url = sys.argv[1]
+with sync_playwright() as p:
+    import os
+    exe = os.environ.get("SO_CHROMIUM") or None
+    b = p.chromium.launch(args=["--no-sandbox"], executable_path=exe)
+    pg = b.new_page(viewport={"width": 1280, "height": 2000}, user_agent="Mozilla/5.0 (X11; Linux x86_64) "
+                    "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36")
+    pg.goto(url, wait_until="networkidle", timeout=45000)
+    pg.wait_for_timeout(2500)
+    for _ in range(6):
+        pg.mouse.wheel(0, 1600); pg.wait_for_timeout(400)
+    print(pg.evaluate("document.body.innerText"))
+    b.close()
+"""
+
+
+def render_page(url):
+    if not re.match(r"^https?://(www\.)?(2degrees\.nz|spark\.co\.nz|one\.nz)(/|$)", url):
+        return "Only provider websites can be rendered."
+    try:
+        r = subprocess.run([sys.executable, "-c", RENDER_SCRIPT, url], capture_output=True, text=True, timeout=90)
+    except subprocess.TimeoutExpired:
+        return "Timed out rendering the page."
+    if r.returncode != 0:
+        return "Could not render: " + (r.stderr.strip().splitlines() or ["unknown error"])[-1][:300]
+    text = re.sub(r"\n{3,}", "\n\n", r.stdout)
+    return text[:60000]
+
+
+def _run_agent(prompt, save_tool, purpose, max_rounds=14):
+    """Agentic loop with server web tools, our render_page tool, and a single save tool. Returns the save input."""
     model = db.get_setting("claude_model")
     cl = ai.client()
-    messages = [{"role": "user", "content": PROMPT.format(category=category, provider=CARRIERS[provider],
-                                                          site=SITES[provider])}]
-    tools = [{"type": "web_search_20260209", "name": "web_search", "max_uses": 12},
-             {"type": "web_fetch_20260209", "name": "web_fetch", "max_uses": 20}, SAVE_TOOL]
-    saved = None
-    for _ in range(12):
+    messages = [{"role": "user", "content": prompt}]
+    tools = [{"type": "web_search_20260209", "name": "web_search", "max_uses": 16},
+             {"type": "web_fetch_20260209", "name": "web_fetch", "max_uses": 24}, RENDER_TOOL, save_tool]
+    for _ in range(max_rounds):
         with cl.messages.stream(model=model, max_tokens=32000, messages=messages, tools=tools,
                                 output_config={"effort": "medium"}) as stream:
             resp = stream.get_final_message()
         inp, out = ai._usage_tokens(resp.usage)
-        ai.log_usage(f"catalogue:{provider}:{category}", "claude", model, inp, out)
+        ai.log_usage(purpose, "claude", model, inp, out)
         messages.append({"role": "assistant", "content": resp.content})
         if resp.stop_reason == "pause_turn":
             continue
-        call = next((b for b in resp.content if b.type == "tool_use" and b.name == "save_plans"), None)
-        if call:
-            saved = call.input
-            break
-        if resp.stop_reason == "tool_use":
-            # Only server tools and save_plans exist; anything else gets a nudge
-            messages.append({"role": "user", "content": [
-                {"type": "tool_result", "tool_use_id": b.id, "content": "Unknown tool", "is_error": True}
-                for b in resp.content if b.type == "tool_use"]})
+        calls = [b for b in resp.content if b.type == "tool_use"]
+        saved = next((b.input for b in calls if b.name == save_tool["name"]), None)
+        if saved is not None:
+            return saved
+        if calls:
+            results = []
+            for b in calls:
+                if b.name == "render_page":
+                    results.append({"type": "tool_result", "tool_use_id": b.id, "content": render_page(b.input.get("url", ""))})
+                else:
+                    results.append({"type": "tool_result", "tool_use_id": b.id, "content": "Unknown tool", "is_error": True})
+            messages.append({"role": "user", "content": results})
             continue
-        messages.append({"role": "user", "content": "Please call save_plans now with everything you found."})
-    if not saved:
-        raise RuntimeError("Catalogue agent finished without saving plans")
+        messages.append({"role": "user", "content": f"Please call {save_tool['name']} now with everything you found."})
+    raise RuntimeError("Agent finished without saving")
+
+
+def refresh(provider, category):
+    """Run the agent for one provider/category. Returns the number of plans saved."""
+    saved = _run_agent(PROMPT.format(category=category, provider=CARRIERS[provider], site=SITES[provider]),
+                       SAVE_TOOL, f"catalogue:{provider}:{category}")
     now = time.time()
     with db.tx() as c:
         if saved["plans"]:
             c.execute("UPDATE plan_catalogue SET active=0 WHERE provider=? AND category=?", (provider, category))
         for p in saved["plans"]:
             c.execute("INSERT INTO plan_catalogue(provider, category, plan_name, price_excl_gst, data_gb, speed,"
-                      " inclusions, conditions, source_url, fetched_at) VALUES (?,?,?,?,?,?,?,?,?,?)",
+                      " inclusions, conditions, source_url, fetched_at, promo_text, promo_price, promo_months,"
+                      " term_months) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                       (provider, category, p["plan_name"], p["price_excl_gst"], p["data_gb"], p["speed"],
-                       p["inclusions"], p["conditions"], p["source_url"], now))
+                       p["inclusions"], p["conditions"], p["source_url"], now, p.get("promo_text") or None,
+                       p.get("promo_price_excl_gst"), p.get("promo_months") or 0, p.get("term_months") or 0))
     db.set_setting(f"catalogue_note:{provider}:{category}", json.dumps({"at": now, "count": len(saved["plans"]),
                                                                        "notes": saved["notes"][:500]}))
     return len(saved["plans"])
@@ -143,8 +207,9 @@ rely on memory. Cover:
 - other: anything else a business would weigh (network coverage claims, 5G, eSIM, number porting help, contract terms,
   early termination rules).
 Record each as a separate item with a short title, the detail, a headline value (e.g. "$8/day", "20% off", "300 mins")
-and conditions, plus the URL it came from. Be specific with numbers and destinations. When finished, call
-save_benefits exactly once with the complete list; if a page blocked you, say so in notes."""
+and conditions, plus the URL it came from. Be specific with numbers and destinations. If a page's content doesn't appear in
+web_fetch (many plan pages render with JavaScript), call render_page with the same URL to read it in a browser.
+When finished, call save_benefits exactly once with the complete list; if a page blocked you, say so in notes."""
 
 SAVE_BENEFITS = {
     "name": "save_benefits",
@@ -172,33 +237,8 @@ SAVE_BENEFITS = {
 
 
 def refresh_benefits(provider):
-    model = db.get_setting("claude_model")
-    cl = ai.client()
-    messages = [{"role": "user", "content": BENEFITS_PROMPT.format(provider=CARRIERS[provider], site=SITES[provider])}]
-    tools = [{"type": "web_search_20260209", "name": "web_search", "max_uses": 16},
-             {"type": "web_fetch_20260209", "name": "web_fetch", "max_uses": 24}, SAVE_BENEFITS]
-    saved = None
-    for _ in range(14):
-        with cl.messages.stream(model=model, max_tokens=32000, messages=messages, tools=tools,
-                                output_config={"effort": "medium"}) as stream:
-            resp = stream.get_final_message()
-        inp, out = ai._usage_tokens(resp.usage)
-        ai.log_usage(f"benefits:{provider}", "claude", model, inp, out)
-        messages.append({"role": "assistant", "content": resp.content})
-        if resp.stop_reason == "pause_turn":
-            continue
-        call = next((b for b in resp.content if b.type == "tool_use" and b.name == "save_benefits"), None)
-        if call:
-            saved = call.input
-            break
-        if resp.stop_reason == "tool_use":
-            messages.append({"role": "user", "content": [
-                {"type": "tool_result", "tool_use_id": b.id, "content": "Unknown tool", "is_error": True}
-                for b in resp.content if b.type == "tool_use"]})
-            continue
-        messages.append({"role": "user", "content": "Please call save_benefits now with everything you found."})
-    if not saved:
-        raise RuntimeError("Benefits agent finished without saving")
+    saved = _run_agent(BENEFITS_PROMPT.format(provider=CARRIERS[provider], site=SITES[provider]), SAVE_BENEFITS,
+                       f"benefits:{provider}")
     now = time.time()
     with db.tx() as c:
         if saved["benefits"]:

@@ -31,6 +31,17 @@ def price_of(name):
     return FALLBACK.get(name, (None, None))[0]
 
 
+def promo_of(name):
+    """Current promotion on a 2degrees plan, if the catalogue recorded one: first-year cost and description."""
+    for r in _cat("2degrees"):
+        if r["plan_name"].lower() == name.lower() and (r.get("promo_months") or 0) > 0 and r["price_excl_gst"]:
+            pm, pp, price = int(r["promo_months"]), float(r.get("promo_price") or 0), r["price_excl_gst"]
+            pm = min(pm, 12)
+            return {"text": r.get("promo_text") or "", "months": pm, "promo_price": pp, "term": r.get("term_months") or 0,
+                    "first_year": round(pp * pm + price * (12 - pm), 2), "saving_year": round((price - pp) * pm, 2)}
+    return None
+
+
 def _words(s):
     return set(re.findall(r"[a-z0-9]+", (s or "").lower())) - {"plan", "business", "the", "a", "simo", "mobile"}
 
@@ -186,6 +197,20 @@ def gains_list():
     return out
 
 
+def _promo_summary(out_lines, out_services, cur_m, fut_m):
+    """First-year cost of the like-for-like setup with the current promotions applied."""
+    items = [x for x in out_lines + out_services if x.get("promo")]
+    if not items:
+        return None
+    promo_saving = sum(x["promo"]["saving_year"] for x in items)
+    first_year = fut_m * 12 - promo_saving
+    return {"items": [{"name": x.get("label") or x.get("address") or x.get("type"), "plan": x["rec"],
+                       "text": x["promo"]["text"], "saving": x["promo"]["saving_year"], "term": x["promo"]["term"]}
+                      for x in items],
+            "first_year_total": round(first_year, 2), "promo_saving": round(promo_saving, 2),
+            "first_year_saving": round(cur_m * 12 - first_year, 2)}
+
+
 def _chamber_scenario(out_lines, out_services, cur_m):
     """What the like-for-like 2degrees setup costs for a Chambers of Commerce member."""
     ch = chamber_offer()
@@ -218,15 +243,15 @@ def switch_plan(lines, services, devices, n_months):
                 "account": p["account"], "account_name": p.get("account_name"),
                 "plan": p["plan"], "current": round(current, 2), "extras": round(p["extras_m"], 2),
                 "rec": name, "role": role, "price": price, "why": why, "saving": round(current - price, 2),
-                "already": p["carrier"] == "2degrees",
+                "already": p["carrier"] == "2degrees", "promo": promo_of(name),
             })
     out_services = []
     for s in services:
         name, why = pick_broadband(s)
         price = price_of(name) or 0
-        out_services.append({"type": s["type"], "address": s["address"], "carrier": s["carrier"], "plan": s["plan"],
-                             "current": s["avg"], "rec": name, "price": price, "why": why,
-                             "saving": round(s["avg"] - price, 2)})
+        out_services.append({"type": s["type"], "address": s["address"], "carrier": s["carrier"],
+                             "carrier_code": s.get("carrier_code"), "plan": s["plan"], "current": s["avg"], "rec": name,
+                             "price": price, "why": why, "saving": round(s["avg"] - price, 2), "promo": promo_of(name)})
     # Right-sized scenario: unlimited lines whose usage isn't shown may fit the 100GB tier
     opt_lines = 0.0
     seen_100_leader = any(l["rec"] == "Business 100GB" for l in out_lines)
@@ -252,6 +277,7 @@ def switch_plan(lines, services, devices, n_months):
         "extras_month": round(extras_m, 2), "hardware_balance": round(hw_balance, 2), "roaming_au": roaming_au,
         "roaming": roaming_comparison(lines, n_months),
         "chamber": _chamber_scenario(out_lines, out_services, cur_m),
+        "promos": _promo_summary(out_lines, out_services, cur_m, fut_m),
         "benefits": gains_list(),
         "gains": [(b["title"] + (f" ({b['value']})" if b["value"] else "")) for b in gains_list()][:6]
                  + ["One bill, one account, one team price"],

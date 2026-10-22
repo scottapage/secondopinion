@@ -15,6 +15,7 @@ if ! cmp -s requirements.txt /opt/secondopinion/.requirements.installed; then
   "$VENV/bin/pip" install -q -r requirements.txt
   cp requirements.txt /opt/secondopinion/.requirements.installed
 fi
+bash deploy/postinstall.sh || echo "$(date -Is) postinstall failed" >> $LOG
 # Caddy config: substitute this droplet's sslip.io hostname for testing before DNS is live
 IP=$(curl -s --max-time 3 http://169.254.169.254/metadata/v1/interfaces/public/0/ipv4/address || hostname -I | awk '{print $1}')
 sed "s/__IPHOST__/${IP//./-}.sslip.io/" deploy/Caddyfile > /etc/caddy/Caddyfile.new
