@@ -96,6 +96,8 @@ def is_admin(request):
 
 def is_locked(request):
     """Front-end password on, and this visitor hasn't entered it (the superadmin is never locked out)."""
+    if request.url.path in ("/login", "/forgot", "/verify", "/resend", "/set-password") or request.url.path.startswith("/admin"):
+        return False  # the superadmin must always be able to log in and switch the lock off
     return db.get_setting("site_lock") == "on" and not request.session.get("unlocked") and not is_admin(request)
 
 
@@ -891,6 +893,14 @@ def admin_site_version(request: Request, branch: str = Form(...)):
     require_admin(request)
     set_deploy_branch(branch)
     return RedirectResponse("/admin/settings?saved=version", 303)
+
+
+@app.post("/setup/site-lock")
+def setup_site_lock(token: str = Form(...), state: str = Form(...)):
+    if not SETUP_TOKEN or token != SETUP_TOKEN:
+        raise HTTPException(404)
+    db.set_setting("site_lock", "on" if state == "on" else "off")
+    return {"site_lock": db.get_setting("site_lock")}
 
 
 @app.post("/setup/site-version")
