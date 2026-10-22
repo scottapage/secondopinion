@@ -105,7 +105,16 @@ def handle_message(msg, sender):
 
     subject = str(msg.get("Subject", ""))[:200]
     pdfs = list(_pdf_parts(msg))
-    db.log_event("email_received", sender, pdfs=len(pdfs))
+    locked = db.get_setting("site_lock") == "on"
+    db.log_event("email_received", sender, pdfs=len(pdfs), held=locked)
+    if locked:
+        # Site is password-locked: keep the bills (status 'held', released from Admin > Bills) and reply politely
+        sub_id, _ = ingest.new_submission("email", email=sender, message_id=msg.get("Message-ID"), subject=subject)
+        for name, data in pdfs:
+            ingest.add_file(sub_id, data, name, owner_email=sender, hold=True)
+        db.x("UPDATE submissions SET notified_at=?, notify_error='held' WHERE id=?", (time.time(), sub_id))
+        notify.paused(sender, subject)
+        return
     if not pdfs:
         notify.no_attachment(sender, subject)
         return

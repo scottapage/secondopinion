@@ -485,3 +485,16 @@ table.data tr.total td { border-top: 2px solid var(--line); background: var(--bg
 .share-modal img { width: 100%; border-radius: 12px; display: block; }
 @media (max-width: 860px) { .meter-grid, .xray { grid-template-columns: 1fr; } .trust { grid-template-columns: 1fr 1fr; } }
 @media (max-width: 520px) { .trust { grid-template-columns: 1fr; } .leak-row { grid-template-columns: 90px 1fr 50px; } }
+
+/* ---- byline and front-end password ---- */
+.byline { font-size: 12px; color: var(--ink-3); font-weight: 500; margin-left: 10px; letter-spacing: 0; align-self: flex-end; padding-bottom: 3px; white-space: nowrap; }
+.top .wrap { display: flex; align-items: center; }
+.brand-wrap { display: flex; align-items: center; }
+body.locked > *:not(.lock-modal):not(script) { filter: blur(14px) saturate(1.2); pointer-events: none; user-select: none; }
+body.locked { overflow: hidden; }
+.lock-modal { position: fixed; inset: 0; z-index: 100; display: flex; align-items: center; justify-content: center; padding: 20px; background: radial-gradient(circle at 20% 20%, rgba(0,158,216,.28), transparent 45%), radial-gradient(circle at 80% 70%, rgba(241,96,13,.22), transparent 45%), rgba(0,54,96,.35); }
+.lock-modal .box { background: #fff; border-radius: 22px; padding: 34px 36px; max-width: 420px; width: 100%; box-shadow: 0 30px 80px rgba(0,54,96,.35); text-align: center; }
+.lock-modal h2 { font-size: 24px; margin: 14px 0 6px; }
+.lock-modal p { color: var(--ink-2); font-size: 14px; }
+.lock-modal input { width: 100%; box-sizing: border-box; font: inherit; font-size: 18px; padding: 12px 14px; border: 1.5px solid var(--line); border-radius: 12px; margin: 18px 0 12px; text-align: center; letter-spacing: .08em; }
+.lock-modal input:focus { outline: none; border-color: var(--blue); }

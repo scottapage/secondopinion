@@ -59,6 +59,13 @@ def no_attachment(to, subject):
                 " broadband bill (any NZ provider) attached as a PDF.")
 
 
+def paused(to, subject):
+    """Auto-reply while the site is password-locked."""
+    mailer.send(to, "Re: " + (subject or "your email"), render("email/paused.html"),
+                "Thanks for your interest in secondopinion.co.nz - we have temporarily stopped processing invoices, but if"
+                " you want to know more, please contact Scott Page on 029 912 4464 or email scott@littleengine.co.nz.")
+
+
 def code(to, code_value, purpose):
     title = "Reset your password" if purpose == "reset" else "Confirm your email"
     html = render("email/code.html", code=code_value, title=title)

@@ -20,6 +20,12 @@
       <form method="post" action="/admin/poll-now"><button class="btn ghost sm">Check mailbox now</button></form>
     </div>
   </div>
+  <form class="card" method="post" action="/admin/settings"><h3>Front-end password</h3>
+    <p class="small muted" style="margin:6px 0 4px">When on, every visitor sees the page blurred behind a password prompt, uploads and the AI are disabled, and bills that arrive by email are held (not analysed) with a polite auto-reply pointing to Scott. You're never locked out as superadmin.</p>
+    <label class="field"><span>Password protection</span><select name="site_lock"><option value="off" {{ 'selected' if vals.site_lock != 'on' }}>Off - site is open</option><option value="on" {{ 'selected' if vals.site_lock == 'on' }}>On - password required</option></select></label>
+    <label class="field"><span>Password</span><input type="text" name="site_password" value="{{ vals.site_password }}"></label>
+    <div style="display:flex;gap:10px;align-items:center;margin-top:16px;flex-wrap:wrap"><button class="btn">Save</button>{% if held %}<button class="btn ghost sm" formaction="/admin/release-held" formmethod="post">Release {{ held }} held bill{{ 's' if held != 1 }} for analysis</button>{% endif %}</div>
+  </form>
   <form class="card" method="post" action="/admin/settings"><h3>Keeping you informed</h3>
     <label class="field"><span>Instant alerts (a stranger uploads a bill, registers or asks for an offer)</span><select name="alerts"><option value="on" {{ 'selected' if vals.alerts == 'on' }}>On</option><option value="off" {{ 'selected' if vals.alerts != 'on' }}>Off</option></select></label>
     <label class="field"><span>Daily digest at 7am NZ</span><select name="digest"><option value="on" {{ 'selected' if vals.digest == 'on' }}>On</option><option value="off" {{ 'selected' if vals.digest != 'on' }}>Off</option></select></label>

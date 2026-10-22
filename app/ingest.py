@@ -21,7 +21,7 @@ def is_pdf(data):
     return data[:1024].lstrip().startswith(b"%PDF")
 
 
-def add_file(submission_id, data, filename, owner_email=None, session_id=None):
+def add_file(submission_id, data, filename, owner_email=None, session_id=None, hold=False):
     """Store a submitted file and queue it for analysis. Returns the invoice id."""
     sha = hashlib.sha256(data).hexdigest()
     folder = INVOICE_DIR / sha[:2]
@@ -32,7 +32,7 @@ def add_file(submission_id, data, filename, owner_email=None, session_id=None):
     filename = re.sub(r"[^\w.\- ()]", "_", filename or "invoice.pdf")[:120]
     owner_email = owner_email and owner_email.lower()
 
-    status, error, dup = "queued", None, None
+    status, error, dup = ("held" if hold else "queued"), None, None
     if not is_pdf(data):
         status, error = "rejected", "Only PDF files are supported."
     else:

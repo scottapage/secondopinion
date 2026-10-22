@@ -42,6 +42,8 @@ SETTING_DEFAULTS = {
     "catalogue_days": "14",  # how often the plan catalogue agent re-reads provider websites
     "parser_min_bills": "10",  # audited bills needed before generating a deterministic parser
     "parser_activate_streak": "10",  # consecutive shadow matches before a parser can be activated
+    "site_lock": "off",  # front-end password: visitors see a blurred page and a password prompt; emails are held
+    "site_password": "scottpage",
     "alerts": "on",  # email the superadmin the moment a stranger uploads a bill, registers or asks for an offer
     "digest": "on",  # 7am NZ daily digest email
     "alert_email": "",  # defaults to the superadmin

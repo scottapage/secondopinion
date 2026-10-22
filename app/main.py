@@ -94,9 +94,20 @@ def is_admin(request):
     return current_email(request) == SUPERADMIN_EMAIL
 
 
+def is_locked(request):
+    """Front-end password on, and this visitor hasn't entered it (the superadmin is never locked out)."""
+    return db.get_setting("site_lock") == "on" and not request.session.get("unlocked") and not is_admin(request)
+
+
+def require_unlocked(request):
+    if is_locked(request):
+        raise HTTPException(403, "This site is password protected.")
+
+
 def page(request, name, status_code=200, **ctx):
     ctx.update(request=request, user_email=current_email(request), is_admin=is_admin(request),
-               mail_address=db.get_setting("mail_address"), version=VERSION)
+               mail_address=db.get_setting("mail_address"), version=VERSION, locked=is_locked(request),
+               lock_error=request.session.pop("lock_error", None))
     return HTMLResponse(render(name, **ctx), status_code)
 
 
@@ -142,6 +153,7 @@ def api_meter():
 
 @app.post("/api/share")
 async def api_share(request: Request):
+    require_unlocked(request)
     body = await request.json()
     kind, key = str(body.get("kind") or "")[:20], str(body.get("key") or "")[:30]
     email = current_email(request)
@@ -171,8 +183,20 @@ def share_page(request: Request, token: str):
     return page(request, "share.html", card=card)
 
 
+@app.post("/unlock")
+def unlock(request: Request, password: str = Form(...), next: str = Form("/")):
+    if secrets.compare_digest(password.strip(), db.get_setting("site_password") or ""):
+        request.session["unlocked"] = True
+        db.log_event("site_unlocked", current_email(request), sid(request), ip=client_ip(request))
+    else:
+        request.session["lock_error"] = "That password didn't match."
+        db.log_event("site_unlock_failed", None, sid(request), ip=client_ip(request))
+    return RedirectResponse(safe_next(next) if next != "/dashboard" or current_email(request) else "/", 303)
+
+
 @app.post("/api/upload")
 async def upload(request: Request, files: list[UploadFile] = File(...)):
+    require_unlocked(request)
     email = current_email(request)
     session_id = sid(request)
     sub_id, token = ingest.new_submission("web", email=email, session_id=session_id)
@@ -311,6 +335,7 @@ CLAIMS = URLSafeTimedSerializer(SECRET_KEY, salt="claim")
 
 @app.post("/api/email-summary")
 async def email_summary(request: Request):
+    require_unlocked(request)
     body = await request.json()
     email = str(body.get("email") or "").strip().lower()
     if not EMAIL_RE.match(email):
@@ -535,6 +560,7 @@ def dashboard(request: Request):
 
 @app.post("/api/chat")
 async def api_chat(request: Request):
+    require_unlocked(request)
     email = current_email(request)
     if not email:
         raise HTTPException(401)
@@ -672,6 +698,16 @@ def admin_invoice(request: Request, invoice_id: int):
     pretty = json.dumps(json.loads(inv["extraction_json"]), indent=2) if inv["extraction_json"] else ""
     return page(request, "admin/invoice.html", inv=inv, lines=lines, usage=usage, pretty=pretty, tab="invoices",
                 msg=request.query_params.get("msg"))
+
+
+@app.post("/admin/release-held")
+def admin_release_held(request: Request):
+    """Queue every bill that arrived by email while the site was locked."""
+    require_admin(request)
+    n = db.x("UPDATE invoices SET status='queued' WHERE status='held'") and \
+        db.q1("SELECT changes() n")["n"]
+    db.x("UPDATE submissions SET notified_at=NULL WHERE notified_at IS NOT NULL AND notify_error='held'")
+    return RedirectResponse("/admin/invoices?status=queued", 303)
 
 
 @app.post("/admin/invoice/{invoice_id}/reprocess")
@@ -812,7 +848,7 @@ def admin_knowledge_add(request: Request, carrier: str = Form(...), kind: str = 
 EDITABLE = ["sales_email", "booking_url", "ai_provider", "claude_model", "chat_model", "local_ai_url",
             "local_ai_model", "mail_polling", "mail_user", "mail_address", "imap_host", "smtp_host",
             "alerts", "digest", "alert_email", "own_emails", "learning_provider", "openai_base_url", "openai_model",
-            "openai_vision", "openai_vision_always", "openai_price_in", "openai_price_out"]
+            "openai_vision", "openai_vision_always", "openai_price_in", "openai_price_out", "site_lock", "site_password"]
 
 
 @app.get("/admin/settings", response_class=HTMLResponse)
@@ -826,6 +862,7 @@ def admin_settings(request: Request):
                 worker_age=time.time() - hb if hb else None, saved=request.query_params.get("saved"),
                 last_test=db.get_setting("last_test_email"), deploy_log=_deploy_log(),
                 last_ai_test=db.get_setting("last_ai_test"),
+                held=db.q1("SELECT COUNT(*) n FROM invoices WHERE status='held'")["n"],
                 branch=BRANCH, deploy_target=deploy_branch(), site_versions=SITE_VERSIONS,
                 queue=db.q1("SELECT COUNT(*) n FROM invoices WHERE status IN ('queued','processing')")["n"])
 

@@ -11,9 +11,9 @@
 <link rel="stylesheet" href="/static/css/app.css?v={{ version }}">
 {% block head %}{% endblock %}
 </head>
-<body>
+<body class="{{ 'locked' if locked }}">
 <header class="top"><div class="wrap">
-  {% include "_logo.html" %}
+  <div class="brand-wrap">{% include "_logo.html" %}</div>
   <nav class="nav">
     {% if user_email %}
       <a href="/dashboard" class="{{ 'active' if request.url.path == '/dashboard' }}">My analysis</a>
@@ -27,6 +27,17 @@
     {% endif %}
   </nav>
 </div></header>
+{% if locked %}
+<div class="lock-modal"><form class="box" method="post" action="/unlock">
+  {% include "_logo.html" %}
+  <h2>This site is password protected</h2>
+  <p>Enter the password to continue{% if lock_error %}<br><span style="color:#B5470A;font-weight:600">{{ lock_error }}</span>{% endif %}</p>
+  <input type="password" name="password" placeholder="Password" autofocus autocomplete="current-password" required>
+  <input type="hidden" name="next" value="{{ request.url.path }}">
+  <button class="btn lg" style="width:100%">Continue</button>
+  <p class="tiny" style="margin-top:14px">Want to know more? Contact Scott Page on 029 912 4464 or <a href="mailto:scott@littleengine.co.nz">scott@littleengine.co.nz</a>.</p>
+</form></div>
+{% endif %}
 {% block body %}{% endblock %}
 {% block footer %}
 <footer class="foot"><div class="wrap">
