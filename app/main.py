@@ -1221,6 +1221,19 @@ def setup_move_bills(token: str = Form(...), from_email: str = Form(...), to_ema
     return {"moved": move_bills(from_email, to_email)}
 
 
+@app.post("/setup/delete-invoices")
+def setup_delete_invoices(token: str = Form(...), ids: str = Form(...)):
+    """Diagnostics: remove test bills (rows cascade; the PDF file stays on disk)."""
+    if not SETUP_TOKEN or token != SETUP_TOKEN:
+        raise HTTPException(404)
+    wanted = [int(x) for x in ids.split(",") if x.strip().isdigit()]
+    with db.tx() as c:
+        for i in wanted:
+            c.execute("DELETE FROM invoices WHERE id=?", (i,))
+    meter.refresh()
+    return {"deleted": wanted}
+
+
 @app.post("/setup/claim-invoice")
 def setup_claim_invoice(token: str = Form(...), invoice_id: int = Form(...), email: str = Form(...)):
     """Diagnostics: attach one anonymous upload to an email address."""
