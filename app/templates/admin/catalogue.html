@@ -22,9 +22,9 @@
 {% set n = notes[prov ~ ':' ~ cat] %}
 <div class="card" style="margin-bottom:16px">
   <div class="card-head"><div><h3>{{ prov|carrier }} &middot; {{ cat }}</h3><p class="tiny">{% if n %}{{ n.count }} plans, read {{ n.at|dt }}{% if n.notes %} &middot; {{ n.notes }}{% endif %}{% else %}Not read yet{% endif %}</p></div></div>
-  {% if items %}<div class="table-wrap"><table class="data"><tr><th>Plan</th><th class="r">Excl GST/mth</th><th>{{ 'Speed' if cat == 'broadband' else 'Data' }}</th><th>Included</th><th>Conditions</th></tr>
+  {% if items %}<div class="table-wrap"><table class="data"><tr><th>Plan</th><th class="r">Excl GST/mth</th><th>{{ 'Speed' if cat == 'broadband' else 'Data' }}</th><th>Included</th><th>Conditions</th><th>Promotion</th></tr>
   {% for p in items %}<tr><td><b>{{ p.plan_name }}</b>{% if p.source_url %}<a class="tiny" href="{{ p.source_url }}" target="_blank" rel="noopener">source</a>{% endif %}</td><td class="r num">{{ p.price_excl_gst|money(2) }}</td>
-    <td>{{ p.speed if cat == 'broadband' else ('Unlimited' if p.data_gb == -1 else ('Pooled' if p.data_gb == 0 else '%g GB'|format(p.data_gb))) }}</td><td class="small" style="max-width:360px">{{ p.inclusions }}</td><td class="small" style="max-width:300px">{{ p.conditions }}</td></tr>{% endfor %}
+    <td>{{ p.speed if cat == 'broadband' else ('Unlimited' if p.data_gb == -1 else ('Pooled' if p.data_gb == 0 else '%g GB'|format(p.data_gb))) }}</td><td class="small" style="max-width:360px">{{ p.inclusions }}</td><td class="small" style="max-width:300px">{{ p.conditions }}</td><td class="small" style="max-width:220px;color:#B5470A">{{ p.promo_text or '' }}</td></tr>{% endfor %}
   </table></div>{% endif %}
 </div>
 {% endfor %}{% endfor %}

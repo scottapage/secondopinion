@@ -410,3 +410,4 @@ table.data tr.total td { border-top: 2px solid var(--line); background: var(--bg
 .card.chamber .ch-r span { font-size: 12px; color: var(--ink-2); }
 @media (max-width: 640px) { .card.chamber { grid-template-columns: 1fr; } }
 .p-name b { font-size: 15px; }
+.tiny.promo { color: #B5470A; font-weight: 600; }

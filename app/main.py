@@ -939,11 +939,28 @@ def admin_catalogue_refresh(request: Request):
 
 
 @app.post("/setup/catalogue")
-def setup_catalogue(token: str = Form(...)):
+def setup_catalogue(token: str = Form(...), provider: str = Form(""), category: str = Form("")):
     if not SETUP_TOKEN or token != SETUP_TOKEN:
         raise HTTPException(404)
+    if provider:
+        def job():
+            try:
+                for cat in ([category] if category else ["mobile", "broadband"]):
+                    n = catalogue.refresh(provider, cat)
+                    db.set_setting("catalogue_last_result", json.dumps({f"{provider}:{cat}": n}))
+            except Exception as e:
+                db.set_setting("catalogue_last_result", json.dumps({f"{provider}:{category}": f"error: {e}"[:200]}))
+        background(job)
+        return {"ok": True, "provider": provider}
     db.set_setting("catalogue_requested", "1")
     return {"ok": True}
+
+
+@app.get("/setup/render-test")
+def setup_render_test(token: str = "", url: str = "https://www.2degrees.nz/business/broadband/business-broadband"):
+    if not SETUP_TOKEN or token != SETUP_TOKEN:
+        raise HTTPException(404)
+    return {"text": catalogue.render_page(url)[:3000]}
 
 
 @app.get("/setup/learning")
