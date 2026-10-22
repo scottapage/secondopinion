@@ -28,8 +28,27 @@ EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 try:
     VERSION = subprocess.run(["git", "rev-parse", "--short", "HEAD"], capture_output=True, text=True,
                              cwd=Path(__file__).parent).stdout.strip() or "dev"
+    BRANCH = subprocess.run(["git", "rev-parse", "--abbrev-ref", "HEAD"], capture_output=True, text=True,
+                            cwd=Path(__file__).parent).stdout.strip() or "main"
 except Exception:
-    VERSION = "dev"
+    VERSION, BRANCH = "dev", "main"
+DEPLOY_BRANCH_FILE = DATA_DIR / "deploy-branch"
+SITE_VERSIONS = {"main": "V2 - current site", "v1": "V1 - first release (frozen)"}
+
+
+def deploy_branch():
+    try:
+        return DEPLOY_BRANCH_FILE.read_text().strip() or "main"
+    except OSError:
+        return "main"
+
+
+def set_deploy_branch(branch):
+    """The auto-deploy script (deploy/update.sh) deploys whatever branch this file names, within a minute."""
+    if branch not in SITE_VERSIONS:
+        raise HTTPException(400, "Unknown site version")
+    DEPLOY_BRANCH_FILE.write_text(branch + "\n")
+    db.log_event("site_version", None, None, branch=branch)
 
 
 BOT_RE = re.compile(r"bot|crawl|spider|slurp|preview|monitor|curl|python|headless|wget|httpx", re.I)
@@ -680,6 +699,7 @@ def admin_settings(request: Request):
                 mail_status=json.loads(db.get_setting("mail_status") or "{}"),
                 worker_age=time.time() - hb if hb else None, saved=request.query_params.get("saved"),
                 last_test=db.get_setting("last_test_email"), deploy_log=_deploy_log(),
+                branch=BRANCH, deploy_target=deploy_branch(), site_versions=SITE_VERSIONS,
                 queue=db.q1("SELECT COUNT(*) n FROM invoices WHERE status IN ('queued','processing')")["n"])
 
 
@@ -700,6 +720,21 @@ async def admin_settings_save(request: Request):
         if v:
             db.set_setting(k, v.replace(" ", "") if k == "mail_password" else v)
     return RedirectResponse("/admin/settings?saved=1", 303)
+
+
+@app.post("/admin/site-version")
+def admin_site_version(request: Request, branch: str = Form(...)):
+    require_admin(request)
+    set_deploy_branch(branch)
+    return RedirectResponse("/admin/settings?saved=version", 303)
+
+
+@app.post("/setup/site-version")
+def setup_site_version(token: str = Form(...), branch: str = Form(...)):
+    if not SETUP_TOKEN or token != SETUP_TOKEN:
+        raise HTTPException(404)
+    set_deploy_branch(branch)
+    return {"ok": True, "deploying": branch, "running": BRANCH}
 
 
 @app.post("/admin/test-email")

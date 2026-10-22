@@ -1,10 +1,11 @@
 {% extends "admin/_base.html" %}
 {% block admin %}
-{% if saved %}<div class="alert ok" style="margin-bottom:16px">{{ {'1':'Settings saved.','test':'Test email: ' ~ (last_test or ''),'poll':'Mailbox check started - refresh in a few seconds.'}[saved] }}</div>{% endif %}
+{% if saved %}<div class="alert ok" style="margin-bottom:16px">{{ {'1':'Settings saved.','test':'Test email: ' ~ (last_test or ''),'poll':'Mailbox check started - refresh in a few seconds.','version':'Site version switched - the server redeploys within a minute (watch Version below).'}[saved] }}</div>{% endif %}
 <div class="grid-2">
   <div class="card"><h3>System status</h3>
     <dl class="kv" style="margin-top:12px">
-      <dt>Version</dt><dd>{{ version }}</dd>
+      <dt>Version</dt><dd>{{ version }} on <b>{{ branch }}</b> ({{ site_versions.get(branch, branch) }})</dd>
+      <dt>Site version</dt><dd><form method="post" action="/admin/site-version" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><select name="branch">{% for b, label in site_versions.items() %}<option value="{{ b }}" {{ 'selected' if deploy_target == b }}>{{ label }}</option>{% endfor %}</select><button class="btn sm ghost">Switch</button>{% if deploy_target != branch %}<span class="tiny">deploying {{ deploy_target }}...</span>{% endif %}</form></dd>
       <dt>Worker</dt><dd>{% if worker_age is not none and worker_age < 30 %}<span class="status done">running</span>{% else %}<span class="status failed">not responding</span>{% endif %}</dd>
       <dt>Bills in queue</dt><dd>{{ queue }}</dd>
       <dt>Mailbox</dt><dd>{% if mail_status.ok %}<span class="status done">OK</span> processed {{ mail_status.processed }} last check{% elif mail_status %}<span class="status failed">error</span> {{ mail_status.error }}{% else %}not checked yet{% endif %}
