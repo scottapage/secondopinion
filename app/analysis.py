@@ -142,6 +142,8 @@ def build(email=None, session_id=None, account=None):
                                                           and p["avg_data"] is not None) else None
         shared = p["user"] and name_count[p["user"].strip().lower()] > 1
         p["label"] = f"{p['user']} \u00b7 {p['display']}" if shared else (p["user"] or p["display"])
+        ini = "".join(w[0].upper() for w in (p["user"] or "").split()[:2])
+        p["short"] = f"{ini} {p['display']}" if shared else (p["user"] or p["display"])
         p["flags"] = []
         p["roaming_m"], p["usage_m"], p["addon_net_m"] = p["roaming"] / n, p["usage"] / n, p["addon"] / n
         p["extras_m"] = p["roaming_m"] + p["usage_m"] + p["addon_net_m"]
@@ -266,7 +268,8 @@ def _mlabel(m):
 
 def _line_json(p, months):
     return {
-        "number": p["number"], "display": p["display"], "label": p["label"], "user": p["user"], "plan": p["plan"],
+        "number": p["number"], "display": p["display"], "label": p["label"], "short": p["short"], "user": p["user"],
+        "plan": p["plan"],
         "carrier": CARRIERS.get(p["carrier"], p["carrier"]), "carrier_code": p["carrier"], "account": p["account"],
         "account_name": p.get("account_name"), "plan_cost": p["plan_cost"],
         "allowance_inferred": bool(p.get("allowance_inferred")),

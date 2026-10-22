@@ -128,7 +128,7 @@
     const head = '<tr><th>Person / number</th><th>Provider</th><th>Plan</th><th class="r">Avg / month</th>' + (A.months.length > 1 ? '<th>Trend</th>' : '') + '<th class="r">Data used</th></tr>';
     const max = Math.max(...A.lines.map(l => l.avg), 1);
     $('lineTable').innerHTML = head + A.lines.map(l =>
-      '<tr><td class="who">' + esc(l.label) + '<span class="tiny">' + esc(l.display) + '</span></td><td>' + provBadge(l.carrier_code, l.carrier) + '</td>' +
+      '<tr><td class="who">' + esc(l.user || l.display) + '<span class="tiny">' + esc(l.display) + '</span></td><td>' + provBadge(l.carrier_code, l.carrier) + '</td>' +
       '<td>' + esc(l.plan || '-') + '</td>' +
       '<td class="r num"><div class="bar-cell" style="justify-content:flex-end"><div class="bar" style="width:' + Math.max(4, 90 * l.avg / max) + 'px"></div><b>' + money(l.avg, 2) + '</b></div></td>' +
       (A.months.length > 1 ? '<td>' + sparkline(l.spend) + '</td>' : '') +
@@ -144,13 +144,13 @@
       const n = Math.max(l.spend.filter(v => v != null).length, 1);
       node(l.carrier, provColor(l.carrier_code), 0);
       [['plan', l.plan_cost || 0], ['addon', Math.max(l.addon / n, 0)], ['extras', (l.roaming + l.usage) / n]].forEach(([k, v]) => {
-        if (v > 0.5) { node(CATS[k][0], CATS[k][1], 1); link(l.carrier, CATS[k][0], v); node(l.label, provColor(l.carrier_code), 2); link(CATS[k][0], l.label, v); }
+        if (v > 0.5) { node(CATS[k][0], CATS[k][1], 1); link(l.carrier, CATS[k][0], v); node(l.short, provColor(l.carrier_code), 2); link(CATS[k][0], l.short, v); }
       });
     });
     (A.services || []).forEach(s => { node(s.carrier, provColor(s.carrier_code), 0); node('Broadband', '#4DBBE4', 1); link(s.carrier, 'Broadband', s.avg); });
     if (A.kpi.devices_month > 0.5 && A.providers[0]) { node(A.providers[0].name, provColor(A.providers[0].code), 0); node('Devices', '#8E9699', 1); link(A.providers[0].name, 'Devices', A.kpi.devices_month); }
     make('sankeyChart', { tooltip: Object.assign({}, SO.base.tooltip, { trigger: 'item', formatter: p => p.dataType === 'edge' ? esc(p.data.source) + ' \u2192 ' + esc(p.data.target) + ': <b>' + money(p.data.value, 2) + '/mth</b>' : '<b>' + esc(p.name) + '</b>' }),
-      series: [{ type: 'sankey', data: nodes, links, left: 4, right: 110, top: 8, bottom: 8, nodeWidth: 14, nodeGap: 10, nodeAlign: 'left', draggable: false, label: { color: C.ink, fontSize: 11, formatter: p => p.name.length > 18 ? p.name.slice(0, 17) + '\u2026' : p.name }, lineStyle: { color: 'gradient', opacity: 0.35, curveness: 0.5 }, emphasis: { focus: 'adjacency' } }] });
+      series: [{ type: 'sankey', data: nodes, links, left: 4, right: 128, top: 8, bottom: 8, nodeWidth: 14, nodeGap: 10, nodeAlign: 'left', draggable: false, label: { color: C.ink, fontSize: 11, formatter: p => p.name.length > 22 ? p.name.slice(0, 21) + '\u2026' : p.name }, lineStyle: { color: 'gradient', opacity: 0.35, curveness: 0.5 }, emphasis: { focus: 'adjacency' } }] });
   }
 
   function renderInsights() {

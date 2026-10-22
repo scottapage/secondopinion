@@ -92,14 +92,14 @@
       node(prov, provColor(l.carrier_code), 0);
       const plan = l.plan_cost || 0, addon = Math.max(l.addon / n, 0), extras = (l.roaming + l.usage) / n;
       [['plan', plan], ['addon', addon], ['extras', extras]].forEach(([k, v]) => {
-        if (v > 0.5) { node(CAT[k][0], CAT[k][1], 1); link(prov, CAT[k][0], v); node(l.label, provColor(l.carrier_code), 2); link(CAT[k][0], l.label, v); }
+        if (v > 0.5) { node(CAT[k][0], CAT[k][1], 1); link(prov, CAT[k][0], v); node(l.short, provColor(l.carrier_code), 2); link(CAT[k][0], l.short, v); }
       });
     });
     (A.services || []).forEach(s => { node(s.carrier, provColor(s.carrier_code), 0); node('Broadband', '#4DBBE4', 1); link(s.carrier, 'Broadband', s.avg); });
     if (A.kpi.devices_month > 0.5) { const prov = (A.providers[0] || {}).name; node(prov, provColor((A.providers[0] || {}).code), 0); node('Devices', '#8E9699', 1); link(prov, 'Devices', A.kpi.devices_month); }
     make('sankeyChart', {
       tooltip: Object.assign({}, SO.base.tooltip, { trigger: 'item', formatter: p => p.dataType === 'edge' ? esc(p.data.source) + ' → ' + esc(p.data.target) + ': <b>' + money(p.data.value, 2) + '/mth</b>' : '<b>' + esc(p.name) + '</b>' }),
-      series: [{ type: 'sankey', data: nodes, links, left: 4, right: 110, top: 8, bottom: 8, nodeWidth: 14, nodeGap: 10, nodeAlign: 'left', draggable: false,
+      series: [{ type: 'sankey', data: nodes, links, left: 4, right: 128, top: 8, bottom: 8, nodeWidth: 14, nodeGap: 10, nodeAlign: 'left', draggable: false,
         label: { color: C.ink, fontSize: 11, formatter: p => p.name.length > 18 ? p.name.slice(0, 17) + '…' : p.name },
         lineStyle: { color: 'gradient', opacity: 0.35, curveness: 0.5 }, emphasis: { focus: 'adjacency' } }]
     });
@@ -144,7 +144,7 @@
   function renderSwitch() {
     const sw = A.switch;
     $('switchTable').innerHTML = '<tr><th>Service</th><th>Now</th><th class="r">$/mth</th><th>On 2degrees</th><th class="r">$/mth</th><th class="r">Change</th></tr>' +
-      sw.lines.map(l => '<tr><td class="who">' + esc(l.label) + '<span class="tiny">' + esc(l.display) + '</span></td><td>' + provBadge(l.carrier_code, l.carrier) + '<div class="small">' + esc(l.plan || '') + '</div></td><td class="r num">' + money(l.current, 2) + '</td>' +
+      sw.lines.map(l => '<tr><td class="who">' + esc(l.user || l.display) + '<span class="tiny">' + esc(l.display) + '</span></td><td>' + provBadge(l.carrier_code, l.carrier) + '<div class="small">' + esc(l.plan || '') + '</div></td><td class="r num">' + money(l.current, 2) + '</td>' +
         '<td>' + provBadge('2degrees', '2degrees') + '<div class="small">' + esc(l.rec) + (l.role ? ' <span class="tiny" style="display:inline">(' + esc(l.role) + ')</span>' : '') + '</div><div class="tiny">' + esc(l.why) + (l.alt ? ' \u00b7 or ' + esc(l.alt) + ' at ' + money(l.alt_price) : '') + '</div></td>' +
         '<td class="r num">' + money(l.price, 2) + '</td><td class="r num ' + (l.saving > 0.5 ? 'delta-down' : l.saving < -0.5 ? 'delta-up' : '') + '">' + (l.saving > 0.5 ? '−' + money(l.saving, 2) : l.saving < -0.5 ? '+' + money(-l.saving, 2) : 'same') + '</td></tr>').join('') +
       sw.services.map(s => '<tr><td class="who">' + esc(s.type) + '<span class="tiny">' + esc(s.address || '') + '</span></td><td>' + provBadge(s.carrier_code || '', s.carrier) + '<div class="small">' + esc(s.plan || '') + '</div></td><td class="r num">' + money(s.current, 2) + '</td><td>' + provBadge('2degrees', '2degrees') + '<div class="small">' + esc(s.rec) + '</div></td><td class="r num">' + money(s.price, 2) + '</td><td class="r num ' + (s.saving > 0.5 ? 'delta-down' : s.saving < -0.5 ? 'delta-up' : '') + '">' + (s.saving > 0.5 ? '−' + money(s.saving, 2) : s.saving < -0.5 ? '+' + money(-s.saving, 2) : 'same') + '</td></tr>').join('') +
@@ -208,7 +208,7 @@
     if (search) rows = rows.filter(l => (l.label + ' ' + l.number + ' ' + (l.plan || '') + ' ' + l.carrier).toLowerCase().includes(search));
     rows.sort((a, b) => { const x = a[sortKey], y = b[sortKey]; return (typeof x === 'string' || typeof y === 'string' ? String(x || '').localeCompare(String(y || '')) : (x || 0) - (y || 0)) * sortDir; });
     $('lineTable').innerHTML = '<tr>' + cols.map(c => '<th class="' + (c[2] || '') + (c[0] !== 'trend' && c[0] !== 'flags' ? ' sort' : '') + '" data-k="' + c[0] + '">' + c[1] + (sortKey === c[0] ? (sortDir < 0 ? ' ↓' : ' ↑') : '') + '</th>').join('') + '</tr>' +
-      rows.map(l => '<tr class="click" data-n="' + esc(l.number) + '"><td class="who">' + esc(l.label) + '<span class="tiny">' + esc(l.display) + '</span></td><td>' + provBadge(l.carrier_code, l.carrier) + '<span class="tiny">' + esc(l.account || '') + '</span></td><td>' + esc(l.plan || '-') + '</td>' +
+      rows.map(l => '<tr class="click" data-n="' + esc(l.number) + '"><td class="who">' + esc(l.user || l.display) + '<span class="tiny">' + esc(l.display) + '</span></td><td>' + provBadge(l.carrier_code, l.carrier) + '<span class="tiny">' + esc(l.account || '') + '</span></td><td>' + esc(l.plan || '-') + '</td>' +
         '<td class="r num"><b>' + money(l.avg, 2) + '</b></td><td>' + sparkline(l.spend) + '</td>' +
         '<td class="r num">' + (l.avg_data_gb == null ? '-' : l.avg_data_gb + ' GB') + (l.allowance_gb ? '<span class="tiny">of ' + (l.allowance_gb === -1 ? 'unlimited' : l.allowance_gb + ' GB') + '</span>' : '') + '</td>' +
         '<td class="r num">' + (l.extras > 0.005 ? money(l.extras, 2) : '-') + '</td>' +
@@ -221,7 +221,7 @@
     if (!l) return;
     const n = monthsOf(l);
     const sw = (A.switch.lines || []).find(x => x.number === l.number);
-    $('drawerBody').innerHTML = '<div class="eyebrow" style="margin-bottom:6px">' + provBadge(l.carrier_code, l.carrier) + ' · ' + esc(l.display) + (l.account ? ' · account ' + esc(l.account) : '') + '</div><h2>' + esc(l.label) + '</h2><p class="muted">' + esc(l.plan || 'Plan not shown') + '</p>' +
+    $('drawerBody').innerHTML = '<div class="eyebrow" style="margin-bottom:6px">' + provBadge(l.carrier_code, l.carrier) + ' · ' + esc(l.display) + (l.account ? ' · account ' + esc(l.account) : '') + '</div><h2>' + esc(l.user || l.display) + '</h2><p class="muted">' + esc(l.plan || 'Plan not shown') + '</p>' +
       '<div class="mini-kpis"><div><b>' + money(l.avg, 2) + '</b><span>avg per month</span></div><div><b>' + (l.avg_data_gb == null ? '-' : l.avg_data_gb + ' GB') + '</b><span>data per month</span></div><div><b>' + money((l.roaming + l.usage + l.addon) / n, 2) + '</b><span>extras per month</span></div></div>' +
       (l.flags.length ? '<p>' + l.flags.map(f => '<span class="flag ' + f.split(' ')[0] + '">' + f + '</span>').join('') + '</p>' : '') +
       (sw ? '<div class="card flat" style="margin-top:14px;padding:14px"><b>On 2degrees:</b> ' + esc(sw.rec) + (sw.role ? ' (' + esc(sw.role) + ')' : '') + ' at ' + money(sw.price, 2) + '/mth vs ' + money(sw.current, 2) + ' now' + (sw.alt ? ' — or ' + esc(sw.alt) + ' at ' + money(sw.alt_price) + ' if usage fits' : '') + '<div class="tiny">' + esc(sw.why) + '</div></div>' : '') +

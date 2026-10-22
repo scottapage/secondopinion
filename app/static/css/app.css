@@ -409,3 +409,4 @@ table.data tr.total td { border-top: 2px solid var(--line); background: var(--bg
 .card.chamber .ch-r b { display: block; font-size: 30px; font-weight: 800; color: var(--navy); letter-spacing: -0.03em; }
 .card.chamber .ch-r span { font-size: 12px; color: var(--ink-2); }
 @media (max-width: 640px) { .card.chamber { grid-template-columns: 1fr; } }
+.p-name b { font-size: 15px; }
