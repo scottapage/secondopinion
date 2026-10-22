@@ -73,6 +73,12 @@ async def track(request: Request, call_next):
 
 # ---------- helpers ----------
 
+def client_ip(request):
+    """Caddy sets X-Forwarded-For and uvicorn runs with --proxy-headers, so request.client is the visitor."""
+    xff = request.headers.get("x-forwarded-for", "")
+    return (xff.split(",")[0].strip() if xff else (request.client.host if request.client else "")) or ""
+
+
 def sid(request):
     s = request.session.get("sid")
     if not s:
@@ -179,7 +185,7 @@ async def upload(request: Request, files: list[UploadFile] = File(...)):
         count += 1
     if not count:
         raise HTTPException(400, "No usable files")
-    db.log_event("upload", email, session_id, files=count)
+    db.log_event("upload", email, session_id, files=count, ip=client_ip(request))
     return {"token": token, "redirect": f"/results/{token}"}
 
 
@@ -273,7 +279,7 @@ async def page_view_beacon(request: Request):
     if "secondopinion.co.nz" in ref_host or "sslip.io" in ref_host:
         ref_host = ""
     meta = {"js": 1, "path": str(body.get("path") or "")[:120],
-            "device": "mobile" if re.search(r"Mobi|Android|iPhone", ua) else "desktop"}
+            "device": "mobile" if re.search(r"Mobi|Android|iPhone", ua) else "desktop", "ip": client_ip(request)}
     if ref_host:
         meta["ref"] = ref_host
     db.log_event(kind, current_email(request), sid(request), **meta)
@@ -470,7 +476,7 @@ def set_password(request: Request, password: str = Form(...), name: str = Form("
     else:
         db.x("INSERT INTO users(email, password_hash, name, company, created_at, verified_at) VALUES (?,?,?,?,?,?)",
              (email, security.hash_password(password), name.strip() or None, company.strip() or None, now, now))
-        db.log_event("registered", email, request.session.get("sid"))
+        db.log_event("registered", email, request.session.get("sid"), ip=client_ip(request))
         background(notify.admin_alert, f"New account: {email}", [f"{name.strip() or 'no name'} - {company.strip() or 'no company'}"],
                    f"{BASE_URL}/admin/user?email={email}", "Open their analysis", email)
     request.session.pop("verified_email", None)

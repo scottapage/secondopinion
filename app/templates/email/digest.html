@@ -18,7 +18,7 @@
     <div style="font-size:17px;font-weight:800;color:#1D292E;padding-bottom:8px;">Who came by</div>
     {% for v in s.stories[:20] %}
     <div style="border-left:4px solid {{ '#F1600D' if v.bills else '#009ED8' }};background:#F5F5F7;border-radius:0 10px 10px 0;padding:10px 14px;margin-bottom:8px;font-size:13px;line-height:19px;">
-      <b>{{ v.email or 'Anonymous' }}</b> &middot; {{ v.device or '?' }}{% if v.ref %} &middot; from {{ v.ref }}{% endif %} &middot; {{ v.last|dt }}<br>
+      <b>{{ v.email or 'Anonymous' }}</b> &middot; {{ v.device or '?' }}{% if v.ref %} &middot; from {{ v.ref }}{% endif %}{% if v.where %} &middot; {{ v.where }}{% elif v.ips %} &middot; {{ v.ips[0] }}{% endif %} &middot; {{ v.last|dt }}<br>
       <span style="color:#61696D;">{% for st in v.steps %}{{ st.label }}{% if st.n > 1 %} &times;{{ st.n }}{% endif %}{% if not loop.last %} &rarr; {% endif %}{% endfor %}</span>
       {% for b in v.bills %}<br><span style="color:{{ '#B5470A' if b.status in ('rejected','failed') else '#1D292E' }};">{{ b.status }}: {{ b.carrier|carrier if b.carrier else b.filename }}{% if b.account_name %} &middot; {{ b.account_name }}{% endif %}{% if b.total_excl_gst %} &middot; {{ b.total_excl_gst|money }}{% endif %}{% if b.error %} &middot; {{ b.error[:80] }}{% endif %}</span>{% endfor %}
       {% if v.headline %}<br><span style="color:#003660;font-weight:700;">{{ v.headline.monthly|money }}/mth, {{ v.headline.lines }} lines, {{ v.headline.providers }}{% if v.headline.finding %} &middot; {{ v.headline.finding }}{% endif %}</span>{% endif %}

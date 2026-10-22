@@ -318,6 +318,16 @@ CREATE TABLE IF NOT EXISTS share_cards (
     created_at REAL NOT NULL
 );
 
+-- Cached IP geolocation for the visitors page (ip-api.com, city level)
+CREATE TABLE IF NOT EXISTS ip_geo (
+    ip TEXT PRIMARY KEY,
+    city TEXT,
+    region TEXT,
+    country TEXT,
+    org TEXT,
+    fetched_at REAL NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS settings (
     key TEXT PRIMARY KEY,
     value TEXT

@@ -2,6 +2,7 @@
 built from the events table. Used by Admin > Visitors and the daily digest email."""
 import json
 import time
+import urllib.request
 
 from . import analysis, db
 from .config import SUPERADMIN_EMAIL
@@ -16,6 +17,30 @@ LABELS = {
     "offer_request": "requested an offer", "invoice_processed": "bill analysed", "share_created": "made a share card",
     "share_viewed": "share card viewed", "evidence_viewed": "checked a figure on the bill",
 }
+
+
+def geo(ip, lookups):
+    """City/country/network for an IP, cached. `lookups` caps live lookups per page render (ip-api.com, free tier)."""
+    if not ip or ip.startswith(("127.", "10.", "192.168.", "::1")):
+        return None
+    row = db.q1("SELECT * FROM ip_geo WHERE ip=?", (ip,))
+    if row:
+        return row
+    if lookups[0] <= 0:
+        return None
+    lookups[0] -= 1
+    try:
+        with urllib.request.urlopen(f"http://ip-api.com/json/{ip}?fields=status,city,regionName,country,org,isp", timeout=3) as r:
+            j = json.loads(r.read())
+        if j.get("status") != "success":
+            return None
+        row = {"ip": ip, "city": j.get("city"), "region": j.get("regionName"), "country": j.get("country"),
+               "org": j.get("org") or j.get("isp"), "fetched_at": time.time()}
+        db.x("INSERT OR REPLACE INTO ip_geo(ip, city, region, country, org, fetched_at) VALUES (?,?,?,?,?,?)",
+             (ip, row["city"], row["region"], row["country"], row["org"], row["fetched_at"]))
+        return row
+    except Exception:
+        return None
 
 
 def own_emails():
@@ -47,12 +72,14 @@ def stories(hours=24 * 7, limit=150, with_analysis=True):
         meta = json.loads(e["meta"] or "{}")
         v = visitors.setdefault(key, {"key": key, "email": email, "sessions": set(), "first": e["created_at"],
                                       "last": e["created_at"], "device": None, "ref": None, "views": 0,
-                                      "steps": [], "kinds": set()})
+                                      "steps": [], "kinds": set(), "ips": []})
         v["email"] = v["email"] or email
         if e["session_id"]:
             v["sessions"].add(e["session_id"])
         v["first"], v["last"] = min(v["first"], e["created_at"]), max(v["last"], e["created_at"])
         v["device"] = meta.get("device") or v["device"]
+        if meta.get("ip") and meta["ip"] not in v["ips"]:
+            v["ips"].append(meta["ip"])
         v["ref"] = meta.get("ref") or v["ref"]
         v["kinds"].add(e["kind"])
         if e["kind"] == "page_view":
@@ -73,7 +100,11 @@ def stories(hours=24 * 7, limit=150, with_analysis=True):
             v["steps"].append({"label": label, "at": e["created_at"], "n": 1, "kind": e["kind"]})
     out = []
     own = own_emails()
+    lookups = [25]
     for v in visitors.values():
+        v["geo"] = [g for g in (geo(ip, lookups) for ip in v["ips"][:3]) if g]
+        v["where"] = "; ".join(", ".join(x for x in (g["city"], g["country"]) if x) + (f" ({g['org']})" if g.get("org") else "")
+                              for g in v["geo"])
         sessions = list(v["sessions"])
         ph = ",".join("?" * len(sessions)) or "''"
         bills = db.q(f"SELECT i.id, i.filename, i.status, i.error, i.carrier, i.account_name, i.total_excl_gst,"
