@@ -999,3 +999,13 @@ def setup_move_bills(token: str = Form(...), from_email: str = Form(...), to_ema
     if not SETUP_TOKEN or token != SETUP_TOKEN:
         raise HTTPException(404)
     return {"moved": move_bills(from_email, to_email)}
+
+
+@app.post("/setup/claim-invoice")
+def setup_claim_invoice(token: str = Form(...), invoice_id: int = Form(...), email: str = Form(...)):
+    """Diagnostics: attach one anonymous upload to an email address."""
+    if not SETUP_TOKEN or token != SETUP_TOKEN:
+        raise HTTPException(404)
+    db.x("UPDATE invoices SET owner_email=? WHERE id=? AND owner_email IS NULL", (email.lower(), invoice_id))
+    ingest.dedupe(email.lower())
+    return {"ok": True}
