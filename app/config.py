@@ -34,14 +34,55 @@ SETTING_DEFAULTS = {
     "catalogue_days": "14",  # how often the plan catalogue agent re-reads provider websites
     "parser_min_bills": "10",  # audited bills needed before generating a deterministic parser
     "parser_activate_streak": "10",  # consecutive shadow matches before a parser can be activated
+    "alerts": "on",  # email the superadmin the moment a stranger uploads a bill, registers or asks for an offer
+    "digest": "on",  # 7am NZ daily digest email
+    "alert_email": "",  # defaults to the superadmin
+    "own_emails": "s.page@centastone.co.nz",  # comma-separated: the superadmin's own test addresses (no alerts)
 }
 
 SECRET_SETTINGS = {"anthropic_api_key", "mail_password"}
 
+# Providers we recognise on bills. The big three have plan catalogues and benefits research; the rest are
+# read the same way (mobile and/or broadband), and anything else arrives as "other" with the name from the bill.
 CARRIERS = {
     "spark": "Spark",
     "one": "One NZ",
     "2degrees": "2degrees",
+    "skinny": "Skinny",
+    "mercury": "Mercury",
+    "contact": "Contact",
+    "electric_kiwi": "Electric Kiwi",
+    "nova": "Nova Energy",
+    "trustpower": "Trustpower",
+    "genesis": "Genesis",
+    "kogan": "Kogan",
+    "slingshot": "Slingshot",
+    "orcon": "Orcon",
+    "flip": "Flip",
+    "now": "NOW",
+    "voyager": "Voyager",
+    "sky": "Sky Broadband",
+    "compass": "Compass",
+    "myrepublic": "MyRepublic",
+    "wireless_nation": "Wireless Nation",
+    "starlink": "Starlink",
+    "zeronet": "Zeronet",
+    "quic": "Quic",
+    "bigpipe": "Bigpipe",
+    "vocus": "Vocus",
+    "rocket": "Rocket Mobile",
+    "warehouse": "Warehouse Mobile",
+    "other": "Other provider",
 }
+BIG3 = ("spark", "one", "2degrees")
+
+
+def carrier_label(code, name=None):
+    """Display name for a provider code; `name` is the free-text name read off an "other" bill."""
+    if code in CARRIERS and code != "other":
+        return CARRIERS[code]
+    if name:
+        return name
+    return CARRIERS.get(code) or (code or "Unknown").replace("_", " ").title()
 
 MAX_UPLOAD_MB = 50

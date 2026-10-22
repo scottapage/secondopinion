@@ -435,11 +435,21 @@ def process_invoice(invoice_id):
             learn(data["carrier"], data, invoice_id)
         db.log_event("invoice_processed", inv["owner_email"], inv["session_id"], invoice_id=invoice_id,
                      carrier=data.get("carrier"), recon_ok=ok)
+        _alert(invoice_id)
         run_learning(invoice_id, inv, text, data)
     except Exception as e:
         traceback.print_exc()
         db.x("UPDATE invoices SET status='failed', error=?, processed_at=? WHERE id=?",
              (f"{type(e).__name__}: {e}"[:500], time.time(), invoice_id))
+        _alert(invoice_id)
+
+
+def _alert(invoice_id):
+    from . import notify
+    try:
+        notify.bill_alert(invoice_id)
+    except Exception:
+        traceback.print_exc()
 
 
 def run_learning(invoice_id, inv, text, data):

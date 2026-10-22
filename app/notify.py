@@ -3,7 +3,7 @@ import time
 import traceback
 
 from . import analysis, charts, db, mailer
-from .config import BASE_URL
+from .config import BASE_URL, SUPERADMIN_EMAIL
 from .tpl import render
 
 
@@ -76,3 +76,59 @@ def offer_request(req_id):
     # Confirmation to the customer
     mailer.send(req["email"], "We're on it - your SecondOpinion request",
                 render("email/request_ack.html", req=req, offer=offer))
+
+
+# ---------- superadmin visibility: instant alerts and the daily digest ----------
+
+def admin_alert(title, lines=(), link=None, link_label=None, email=None):
+    """Email the superadmin the moment a stranger does something that matters (upload, account, offer request).
+    Activity from the superadmin's own addresses (Admin > Settings > own emails) is ignored."""
+    from . import visitors
+    if db.get_setting("alerts") != "on" or (email and not visitors.is_stranger(email)):
+        return
+    to = db.get_setting("alert_email") or SUPERADMIN_EMAIL
+    try:
+        mailer.send(to, "SecondOpinion: " + title, render("email/alert.html", title=title, lines=lines, link=link,
+                                                             link_label=link_label), "\n".join([title, *lines]))
+    except Exception:
+        traceback.print_exc()
+
+
+def bill_alert(invoice_id):
+    inv = db.q1("SELECT i.*, s.token, s.source FROM invoices i LEFT JOIN submissions s ON s.id=i.submission_id"
+                " WHERE i.id=?", (invoice_id,))
+    if not inv:
+        return
+    from .config import carrier_label
+    who = inv["owner_email"] or "an anonymous visitor"
+    if inv["status"] in ("done", "duplicate"):
+        title = f"New bill from {who}: {carrier_label(inv['carrier'])}"
+        lines = [f"{inv['account_name'] or 'account name not shown'} - {inv['line_count'] or 0} mobile line(s),"
+                 f" {analysis.fmt_money(inv['total_excl_gst'], 2)} excl GST, period {inv['period_month'] or '?'}",
+                 f"Sent via {inv['source'] or 'web'}; file {inv['filename']}"]
+    else:
+        title = f"Bill {inv['status']} from {who}"
+        lines = [inv["error"] or "", f"File {inv['filename']}"]
+    link = f"{BASE_URL}/results/{inv['token']}" if inv["token"] else f"{BASE_URL}/admin/invoice/{invoice_id}"
+    admin_alert(title, lines, link, "See what they saw", email=inv["owner_email"])
+
+
+def daily_digest():
+    """The 7am (NZ) summary of the previous day, to the superadmin."""
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+    from . import visitors
+    s = visitors.summary(24)
+    trend = db.q(
+        "SELECT date(created_at,'unixepoch','localtime') d, SUM(kind='upload') uploads, SUM(kind='email_received') emails,"
+        " SUM(kind='registered') registrations, SUM(kind='offer_request') offers,"
+        " SUM(kind='page_view' AND meta LIKE '%\"js\": 1%') views FROM events"
+        " WHERE created_at > strftime('%s','now','-7 days') GROUP BY d ORDER BY d")
+    since = time.time() - 86400
+    ai_cost = db.q1("SELECT ROUND(COALESCE(SUM(cost_usd),0),2) v FROM ai_usage WHERE created_at>?", (since,))["v"]
+    failed = db.q1("SELECT COUNT(*) n FROM invoices WHERE created_at>? AND status IN ('failed','rejected')", (since,))["n"]
+    day = datetime.now(ZoneInfo("Pacific/Auckland")).strftime("%A %d %B %Y")
+    to = db.get_setting("alert_email") or SUPERADMIN_EMAIL
+    html = render("email/digest.html", s=s, trend=trend, ai_cost=ai_cost or 0, failed=failed, day=day)
+    mailer.send(to, f"SecondOpinion digest: {s['visitors']} visitors, {s['uploaders']} uploaded, {s['registered']} registered",
+                html, f"{s['visitors']} visitors, {s['uploaders']} uploaded bills, {s['registered']} registered.")

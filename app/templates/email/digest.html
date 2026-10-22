@@ -1,0 +1,40 @@
+{% extends "email/_base.html" %}
+{% block preheader %}{{ s.visitors }} visitors, {{ s.uploaders }} uploaded, {{ s.registered }} registered in the last 24 hours{% endblock %}
+{% block body %}
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+  <tr><td style="background:#003660;padding:28px 32px 24px 32px;">
+    <div style="font-size:13px;letter-spacing:1px;text-transform:uppercase;color:#4DBBE4;font-weight:700;">SecondOpinion daily digest</div>
+    <div style="font-size:24px;line-height:30px;font-weight:800;color:#ffffff;padding-top:8px;">{{ s.visitors }} visitor{{ 's' if s.visitors != 1 }}, {{ s.uploaders }} uploaded bills, {{ s.registered }} registered.</div>
+    <div style="font-size:14px;color:#B3E2F3;padding-top:6px;">{{ day }} &middot; strangers only (your own activity is left out)</div>
+  </td></tr>
+  <tr><td style="padding:20px 24px 4px 24px;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr>
+      {% for label, v in [("Visitors", s.visitors), ("Saw example", s.example), ("Uploaded", s.uploaders), ("Bills", s.bills), ("Emailed summary", s.emails), ("Registered", s.registered), ("Offers", s.offers)] %}
+      <td style="padding:4px;"><div style="background:#F5F5F7;border-radius:10px;padding:10px 8px;text-align:center;"><div style="font-size:11px;color:#61696D;">{{ label }}</div><div style="font-size:20px;font-weight:800;color:#003660;">{{ v }}</div></div></td>
+      {% endfor %}
+    </tr></table>
+  </td></tr>
+  <tr><td style="padding:16px 32px 8px 32px;">
+    <div style="font-size:17px;font-weight:800;color:#1D292E;padding-bottom:8px;">Who came by</div>
+    {% for v in s.stories[:20] %}
+    <div style="border-left:4px solid {{ '#F1600D' if v.bills else '#009ED8' }};background:#F5F5F7;border-radius:0 10px 10px 0;padding:10px 14px;margin-bottom:8px;font-size:13px;line-height:19px;">
+      <b>{{ v.email or 'Anonymous' }}</b> &middot; {{ v.device or '?' }}{% if v.ref %} &middot; from {{ v.ref }}{% endif %} &middot; {{ v.last|dt }}<br>
+      <span style="color:#61696D;">{% for st in v.steps %}{{ st.label }}{% if st.n > 1 %} &times;{{ st.n }}{% endif %}{% if not loop.last %} &rarr; {% endif %}{% endfor %}</span>
+      {% for b in v.bills %}<br><span style="color:{{ '#B5470A' if b.status in ('rejected','failed') else '#1D292E' }};">{{ b.status }}: {{ b.carrier|carrier if b.carrier else b.filename }}{% if b.account_name %} &middot; {{ b.account_name }}{% endif %}{% if b.total_excl_gst %} &middot; {{ b.total_excl_gst|money }}{% endif %}{% if b.error %} &middot; {{ b.error[:80] }}{% endif %}</span>{% endfor %}
+      {% if v.headline %}<br><span style="color:#003660;font-weight:700;">{{ v.headline.monthly|money }}/mth, {{ v.headline.lines }} lines, {{ v.headline.providers }}{% if v.headline.finding %} &middot; {{ v.headline.finding }}{% endif %}</span>{% endif %}
+    </div>
+    {% else %}<div style="font-size:14px;color:#61696D;">Nobody new in the last 24 hours.</div>{% endfor %}
+  </td></tr>
+  {% if trend %}<tr><td style="padding:12px 32px 8px 32px;">
+    <div style="font-size:17px;font-weight:800;color:#1D292E;padding-bottom:8px;">Last 7 days</div>
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="font-size:13px;">
+      <tr style="color:#61696D;"><td>Day</td><td align="right">Views</td><td align="right">Uploads</td><td align="right">Emails in</td><td align="right">Registered</td><td align="right">Offers</td></tr>
+      {% for d in trend %}<tr><td style="padding:3px 0;border-top:1px solid #F1F1F2;">{{ d.d }}</td><td align="right" style="border-top:1px solid #F1F1F2;">{{ d.views }}</td><td align="right" style="border-top:1px solid #F1F1F2;">{{ d.uploads }}</td><td align="right" style="border-top:1px solid #F1F1F2;">{{ d.emails }}</td><td align="right" style="border-top:1px solid #F1F1F2;">{{ d.registrations }}</td><td align="right" style="border-top:1px solid #F1F1F2;">{{ d.offers }}</td></tr>{% endfor %}
+    </table>
+  </td></tr>{% endif %}
+  <tr><td style="padding:16px 32px 28px 32px;">
+    {% with href=BASE_URL ~ "/admin/visitors", label="Open the visitors page" %}{% include "email/_button.html" %}{% endwith %}
+    <div style="font-size:12px;color:#8E9699;padding-top:12px;">AI spend in the last 24 hours: ${{ '%.2f'|format(ai_cost) }} USD &middot; failed or rejected bills: {{ failed }}</div>
+  </td></tr>
+</table>
+{% endblock %}

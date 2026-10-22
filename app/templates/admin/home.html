@@ -1,7 +1,7 @@
 {% extends "admin/_base.html" %}
 {% block admin %}
 <div class="card" style="margin-bottom:20px">
-  <div class="card-head"><div><h3>Last 24 hours</h3><p class="small muted">Real browsers only: a visit counts when the page actually loads and runs, so scanners and bots are excluded. Refresh to update.</p></div></div>
+  <div class="card-head"><div><h3>Last 24 hours <a class="small" href="/admin/visitors" style="font-weight:600;margin-left:8px">See each visitor&rsquo;s story &rarr;</a></h3><p class="small muted">Real browsers only: a visit counts when the page actually loads and runs, so scanners and bots are excluded. Refresh to update.</p></div></div>
   <div class="kpis" style="grid-template-columns:repeat(auto-fit,minmax(130px,1fr))">
     {% for label, v in [('Visitors', live.visitors), ('Page views', live.page_views), ('Viewed example', live.example_views), ('Touched upload', live.upload_intent), ('Uploads', live.uploads), ('Emails in', live.emails_in), ('Emailed summary', live.emails_captured), ('Registrations', live.registrations), ('AI questions', live.ai_questions), ('Offer requests', live.offer_requests), ('Errors', live.errors)] %}
     <div class="kpi" style="padding:14px 16px"><div class="label">{{ label }}</div><div class="value" style="font-size:24px{{ ';color:#F1600D' if label == 'Errors' and v }}">{{ v }}</div></div>

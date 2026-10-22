@@ -14,7 +14,7 @@ from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.sessions import SessionMiddleware
 
-from . import analysis, catalogue, chat, db, dossier, example, extract, ingest, learning, mailer, notify, security
+from . import analysis, catalogue, chat, db, dossier, example, extract, ingest, learning, mailer, notify, security, visitors
 from .config import BASE_URL, CHART_DIR, DATA_DIR, MAX_UPLOAD_MB, SECRET_KEY, SECRET_SETTINGS, SETUP_TOKEN, SUPERADMIN_EMAIL
 from .tpl import render
 
@@ -394,6 +394,8 @@ def set_password(request: Request, password: str = Form(...), name: str = Form("
         db.x("INSERT INTO users(email, password_hash, name, company, created_at, verified_at) VALUES (?,?,?,?,?,?)",
              (email, security.hash_password(password), name.strip() or None, company.strip() or None, now, now))
         db.log_event("registered", email, request.session.get("sid"))
+        background(notify.admin_alert, f"New account: {email}", [f"{name.strip() or 'no name'} - {company.strip() or 'no company'}"],
+                   f"{BASE_URL}/admin/user?email={email}", "Open their analysis", email)
     request.session.pop("verified_email", None)
     request.session.pop("pending_email", None)
     login(request, email)
@@ -497,6 +499,8 @@ def offer_submit(request: Request, kind: str = Form(...), offer_id: str = Form("
                (email, kind, oid, phone[:40], notes[:2000], time.time()))
     db.log_event("offer_request", email, kind=kind, offer_id=oid)
     background(notify.offer_request, rid)
+    background(notify.admin_alert, f"Offer request ({kind}) from {email}", [phone, notes[:300]],
+               f"{BASE_URL}/admin/requests", "Open offer requests", email)
     return RedirectResponse(f"/offer?sent={kind}", 303)
 
 
@@ -594,6 +598,26 @@ def admin_save(request: Request, invoice_id: int, extraction_json: str = Form(..
     return RedirectResponse(f"/admin/invoice/{invoice_id}?msg=Saved", 303)
 
 
+@app.get("/admin/visitors", response_class=HTMLResponse)
+def admin_visitors(request: Request, hours: int = 168):
+    require_admin(request)
+    return page(request, "admin/visitors.html", rows=visitors.stories(hours), hours=hours, tab="visitors")
+
+
+@app.post("/admin/digest-now")
+def admin_digest_now(request: Request):
+    require_admin(request)
+    background(notify.daily_digest)
+    return RedirectResponse("/admin/settings?saved=digest", 303)
+
+
+@app.get("/setup/visitors")
+def setup_visitors(token: str = "", hours: int = 168):
+    if not SETUP_TOKEN or token != SETUP_TOKEN:
+        raise HTTPException(404)
+    return visitors.stories(hours)
+
+
 @app.get("/admin/users", response_class=HTMLResponse)
 def admin_users(request: Request):
     require_admin(request)
@@ -686,7 +710,8 @@ def admin_knowledge_add(request: Request, carrier: str = Form(...), kind: str = 
 
 
 EDITABLE = ["sales_email", "booking_url", "ai_provider", "claude_model", "chat_model", "local_ai_url",
-            "local_ai_model", "mail_polling", "mail_user", "mail_address", "imap_host", "smtp_host"]
+            "local_ai_model", "mail_polling", "mail_user", "mail_address", "imap_host", "smtp_host",
+            "alerts", "digest", "alert_email", "own_emails"]
 
 
 @app.get("/admin/settings", response_class=HTMLResponse)

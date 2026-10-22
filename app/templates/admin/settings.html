@@ -1,6 +1,6 @@
 {% extends "admin/_base.html" %}
 {% block admin %}
-{% if saved %}<div class="alert ok" style="margin-bottom:16px">{{ {'1':'Settings saved.','test':'Test email: ' ~ (last_test or ''),'poll':'Mailbox check started - refresh in a few seconds.','version':'Site version switched - the server redeploys within a minute (watch Version below).'}[saved] }}</div>{% endif %}
+{% if saved %}<div class="alert ok" style="margin-bottom:16px">{{ {'1':'Settings saved.','test':'Test email: ' ~ (last_test or ''),'poll':'Mailbox check started - refresh in a few seconds.','digest':'Digest is on its way to your inbox.','version':'Site version switched - the server redeploys within a minute (watch Version below).'}[saved] }}</div>{% endif %}
 <div class="grid-2">
   <div class="card"><h3>System status</h3>
     <dl class="kv" style="margin-top:12px">
@@ -20,6 +20,13 @@
       <form method="post" action="/admin/poll-now"><button class="btn ghost sm">Check mailbox now</button></form>
     </div>
   </div>
+  <form class="card" method="post" action="/admin/settings"><h3>Keeping you informed</h3>
+    <label class="field"><span>Instant alerts (a stranger uploads a bill, registers or asks for an offer)</span><select name="alerts"><option value="on" {{ 'selected' if vals.alerts == 'on' }}>On</option><option value="off" {{ 'selected' if vals.alerts != 'on' }}>Off</option></select></label>
+    <label class="field"><span>Daily digest at 7am NZ</span><select name="digest"><option value="on" {{ 'selected' if vals.digest == 'on' }}>On</option><option value="off" {{ 'selected' if vals.digest != 'on' }}>Off</option></select></label>
+    <label class="field"><span>Send alerts and digest to (blank = superadmin)</span><input type="email" name="alert_email" value="{{ vals.alert_email }}"></label>
+    <label class="field"><span>Your own addresses, comma-separated (no alerts for these)</span><input type="text" name="own_emails" value="{{ vals.own_emails }}"></label>
+    <div style="display:flex;gap:10px;align-items:center;margin-top:16px;flex-wrap:wrap"><button class="btn">Save</button><button class="btn ghost sm" formaction="/admin/digest-now">Send me today's digest now</button><a class="small" href="/admin/visitors">Visitors page &rarr;</a></div>
+  </form>
   <form class="card" method="post" action="/admin/settings"><h3>Sales &amp; offers</h3>
     <label class="field"><span>Sales team email (receives "Make me an offer" requests)</span><input type="email" name="sales_email" value="{{ vals.sales_email }}"></label>
     <label class="field"><span>Booking link (Calendly, Microsoft Bookings - optional)</span><input type="url" name="booking_url" value="{{ vals.booking_url }}"></label>

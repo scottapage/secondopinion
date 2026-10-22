@@ -1,0 +1,10 @@
+{% extends "email/_base.html" %}
+{% block preheader %}{{ title }}{% endblock %}
+{% block body %}
+<div style="padding:28px 32px;">
+  <div style="font-size:13px;letter-spacing:1px;text-transform:uppercase;color:#009ED8;font-weight:700;">Right now on SecondOpinion</div>
+  <div style="font-size:22px;line-height:28px;font-weight:800;color:#003660;padding-top:6px;">{{ title }}</div>
+  {% for line in lines %}<div style="font-size:14px;line-height:21px;color:#1D292E;padding-top:6px;">{{ line }}</div>{% endfor %}
+  {% if link %}<div style="padding-top:18px;">{% with href=link, label=link_label or "Open" %}{% include "email/_button.html" %}{% endwith %}</div>{% endif %}
+</div>
+{% endblock %}

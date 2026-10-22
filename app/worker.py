@@ -70,6 +70,22 @@ def catalogue_loop():
         time.sleep(300)
 
 
+def digest_loop():
+    """Send the daily digest at 7am New Zealand time (once per day)."""
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+    while True:
+        try:
+            now = datetime.now(ZoneInfo("Pacific/Auckland"))
+            today = now.strftime("%Y-%m-%d")
+            if db.get_setting("digest") == "on" and now.hour >= 7 and db.get_setting("digest_sent") != today:
+                db.set_setting("digest_sent", today)
+                notify.daily_digest()
+        except Exception:
+            traceback.print_exc()
+        time.sleep(60)
+
+
 def main():
     db.init()
     # Bills left mid-processing by a restart go back on the queue
@@ -80,6 +96,7 @@ def main():
         db.set_setting("catalogue_requested", "1")
     threading.Thread(target=mail_loop, daemon=True).start()
     threading.Thread(target=catalogue_loop, daemon=True).start()
+    threading.Thread(target=digest_loop, daemon=True).start()
     for _ in range(PARALLEL):
         threading.Thread(target=extract_loop, daemon=True).start()
     while True:
