@@ -4,7 +4,7 @@ import threading
 import time
 import traceback
 
-from . import catalogue, db, example, extract, mailer, notify
+from . import catalogue, db, example, extract, mailer, meter, notify
 
 POLL_SECONDS = 60
 
@@ -70,6 +70,16 @@ def catalogue_loop():
         time.sleep(300)
 
 
+def meter_loop():
+    """Keep the front-page overpay meter fresh."""
+    while True:
+        try:
+            meter.refresh()
+        except Exception:
+            traceback.print_exc()
+        time.sleep(600)
+
+
 def digest_loop():
     """Send the daily digest at 7am New Zealand time (once per day)."""
     from datetime import datetime
@@ -97,6 +107,7 @@ def main():
     threading.Thread(target=mail_loop, daemon=True).start()
     threading.Thread(target=catalogue_loop, daemon=True).start()
     threading.Thread(target=digest_loop, daemon=True).start()
+    threading.Thread(target=meter_loop, daemon=True).start()
     for _ in range(PARALLEL):
         threading.Thread(target=extract_loop, daemon=True).start()
     while True:

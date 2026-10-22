@@ -1,5 +1,5 @@
 (function () {
-  const { money, make, axisX, axisY, sparkline, SERIES, C, PROV, provColor, provBadge, scoreRing, countUp, initials, ev } = SO;
+  const { money, make, axisX, axisY, sparkline, SERIES, C, PROV, provColor, provBadge, scoreRing, countUp, initials, ev, shareBtn } = SO;
   const evL = (l, inner, amt) => ev(l.src, [l.number, amt != null ? amt : (l.src && l.src.total)], inner, (l.user || '') + ' · ' + l.display);
   const $ = (id) => document.getElementById(id);
   const esc = (s) => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -42,7 +42,7 @@
       + (provs.length > 1 ? '<span class="prov-note">Two providers means two bills, two logins and no team pricing across the whole team.</span>' : '');
     const s = A.score;
     $('scoreWrap').innerHTML = '<div class="score-ring">' + scoreRing(s.score, 148) + '<div class="score-txt"><b data-count="' + s.score + '" data-int="1">0</b><span>health score</span></div></div>' +
-      '<div class="score-parts"><div class="grade">' + esc(s.grade) + '</div>' + s.parts.map(p => '<div class="sp"><div class="sp-h"><span>' + esc(p.label) + '</span><b>' + p.score + '/' + p.max + '</b></div><div class="sp-bar"><i style="width:' + (100 * p.score / p.max) + '%"></i></div><div class="sp-n">' + esc(p.note) + '</div></div>').join('') + '</div>';
+      '<div class="score-parts"><div class="grade">' + esc(s.grade) + ' ' + shareBtn('score') + '</div>' + s.parts.map(p => '<div class="sp"><div class="sp-h"><span>' + esc(p.label) + '</span><b>' + p.score + '/' + p.max + '</b></div><div class="sp-bar"><i style="width:' + (100 * p.score / p.max) + '%"></i></div><div class="sp-n">' + esc(p.note) + '</div></div>').join('') + '</div>';
     const delta = k.monthly_prev != null ? k.monthly - k.monthly_prev : null;
     const sw = A.switch || {};
     $('kpis').innerHTML = [
@@ -117,7 +117,7 @@
       '<div class="sw-big">' + (best > 0 ? '<span data-count="' + best + '">$0</span> a year' : 'Same price, one bill') + '</div>' +
       '<p>' + (sw.saving_year > 0 ? 'Like-for-like plans come to <b>' + money(sw.future_month) + '/mth</b> instead of <b>' + money(sw.current_month) + '</b>.' : 'Like-for-like plans come to <b>' + money(sw.future_month) + '/mth</b> against <b>' + money(sw.current_month) + '</b> today.') +
       (sw.optimised_saving_year > sw.saving_year ? ' Right-sized, where usage allows, <b>' + money(sw.optimised_month) + '/mth</b> — ' + money(sw.optimised_saving_year) + ' a year.' : '') + (sw.promos ? ' With current promotions the first year is <b>' + money(sw.promos.first_year_total) + '</b>.' : '') + '</p>' +
-      '<div class="sw-actions"><a class="btn white" href="/offer">Make me an offer</a><button class="link-btn light" id="toSwitch">See it line by line →</button></div></div>' +
+      '<div class="sw-actions"><a class="btn white" href="/offer">Make me an offer</a><button class="link-btn light" id="toSwitch">See it line by line →</button>' + shareBtn('switch') + '</div></div>' +
       '<div class="sw-right"><div class="sw-cmp"><div><span>Today</span><b data-count="' + sw.current_month + '">$0</b><i>plans + add-ons /mth</i></div><div class="arrow">→</div><div><span>2degrees</span><b data-count="' + sw.future_month + '">$0</b><i>like-for-like /mth</i></div></div>' +
       '<ul class="gains">' + (sw.roaming && sw.roaming.saving_year > 0 ? '<li>Roaming about ' + money(sw.roaming.saving_year) + '/yr cheaper (' + sw.roaming.days_other + ' days at $' + sw.roaming.rate + '/day' + (sw.roaming.days_au ? ', Australia free' : '') + ')</li>' : '') + sw.gains.slice(0, 3).map(g => '<li>' + esc(g) + '</li>').join('') + '</ul></div>';
     $('toSwitch').onclick = () => goTab('switch');
@@ -269,7 +269,7 @@
 
   // ---- Savings
   function renderSavings() {
-    $('insights').innerHTML = A.insights.map(i => '<div class="insight"><div class="k">' + esc(i.title) + '</div><div class="h">' + esc(i.headline) + '</div><div class="b">' + esc(i.body) + '</div>' +
+    $('insights').innerHTML = A.insights.map(i => '<div class="insight"><div class="k">' + esc(i.title) + (i.saving > 0 ? ' ' + shareBtn('insight', i.key) : '') + '</div><div class="h">' + esc(i.headline) + '</div><div class="b">' + esc(i.body) + '</div>' +
       (i.saving > 0 ? '<div class="save">Save up to ' + money(i.saving * 12) + ' a year</div>' : '') +
       (i.items.length ? '<ul>' + i.items.map(it => '<li><span><b>' + esc(it.label) + '</b><br><span class="d">' + esc(it.number) + ' · ' + esc(it.detail || '') + '</span></span><span class="num" style="text-align:right;white-space:nowrap">' + ev(it.src, it.terms, esc(it.value), it.label) + '</span></li>').join('') + '</ul>' : '') + '</div>').join('');
   }

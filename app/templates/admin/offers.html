@@ -1,5 +1,6 @@
 {% extends "admin/_base.html" %}
 {% block admin %}
+<div class="alert info" style="margin-bottom:16px">The customer offer page now shows promotions and member discounts <b>as published on 2degrees.nz</b> (from the plan catalogue and benefits research). Offers added here appear underneath as "Other offers"; the V1 placeholders were switched off.</div>
 <p class="muted" style="margin-bottom:14px">Active offers appear on the "Make me an offer" page.</p>
 <div class="grid-2">
 {% for o in rows + [{'id': '', 'title': '', 'subtitle': '', 'details': '', 'badge': '', 'active': 1, 'sort': rows|length}] %}

@@ -12,8 +12,24 @@
   </div>
   {% endif %}
 
+  {% if published %}
+  <h2 style="margin:44px 0 6px">What 2degrees is offering right now</h2>
+  <p class="muted" style="margin-bottom:18px">Taken from 2degrees.nz by our research agent, not from us. Each one links to the page it came from.</p>
+  <div class="offers">
+    {% for o in published %}
+    <div class="offer">
+      <span class="badge">{{ o.badge }}</span>
+      <div class="title">{{ o.title }}</div>
+      <div class="sub">{{ o.plan }}</div>
+      {% if o.detail %}<div class="tiny">{{ o.detail }}</div>{% endif %}
+      {% if o.url %}<a class="tiny" href="{{ o.url }}" target="_blank" rel="noopener" style="display:block;margin:6px 0 10px">As published on 2degrees.nz &rarr;</a>{% endif %}
+      <form method="post" action="/offer"><input type="hidden" name="kind" value="offer"><input type="hidden" name="notes" value="Interested in: {{ o.title }} ({{ o.plan }})"><button class="btn" style="width:100%">I'm interested</button></form>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
   {% if offers %}
-  <h2 style="margin:44px 0 18px">Current offers</h2>
+  <h2 style="margin:44px 0 18px">Other offers</h2>
   <div class="offers">
     {% for o in offers %}
     <div class="offer">

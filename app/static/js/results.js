@@ -1,5 +1,5 @@
 (function () {
-  const { money, make, axisX, axisY, sparkline, SERIES, C, provColor, provBadge, scoreRing, countUp, ev } = SO;
+  const { money, make, axisX, axisY, sparkline, SERIES, C, provColor, provBadge, scoreRing, countUp, ev, shareBtn } = SO;
   const $ = (id) => document.getElementById(id);
   const TICK = '<svg class="tick" viewBox="0 0 20 20"><circle cx="10" cy="10" r="10" fill="#E3F4EC"/><path d="M6 10.5l2.6 2.6L14 7.6" fill="none" stroke="#00875A" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
   const WARN = '<svg class="tick" viewBox="0 0 20 20"><circle cx="10" cy="10" r="10" fill="#FEF2E5"/><path d="M10 5.5v5.5M10 14v.3" stroke="#F1600D" stroke-width="2.2" stroke-linecap="round"/></svg>';
@@ -47,7 +47,7 @@
     $('provRow').innerHTML = provs.map(p => '<span class="prov-chip" style="--pc:' + provColor(p.code) + '"><i></i>' + esc(p.name) + ' <b>' + money(p.monthly) + '</b><span>' + (p.lines ? p.lines + ' line' + (p.lines === 1 ? '' : 's') : (p.services || 0) + ' broadband') + '</span></span>').join('');
     const s = A.score;
     $('scoreWrap').innerHTML = '<div class="score-ring">' + scoreRing(s.score, 148) + '<div class="score-txt"><b data-count="' + s.score + '" data-int="1">0</b><span>health score</span></div></div>' +
-      '<div class="score-parts"><div class="grade">' + esc(s.grade) + '</div>' + s.parts.map(p => '<div class="sp"><div class="sp-h"><span>' + esc(p.label) + '</span><b>' + p.score + '/' + p.max + '</b></div><div class="sp-bar"><i style="width:' + (100 * p.score / p.max) + '%"></i></div>' + (SO_EXAMPLE ? '<div class="sp-n">' + esc(p.note) + '</div>' : '') + '</div>').join('') + (SO_EXAMPLE ? '' : '<div class="sp-n" style="margin-top:8px">Create an account to see what\u2019s behind each score.</div>') + '</div>';
+      '<div class="score-parts"><div class="grade">' + esc(s.grade) + ' ' + shareBtn('score') + '</div>' + s.parts.map(p => '<div class="sp"><div class="sp-h"><span>' + esc(p.label) + '</span><b>' + p.score + '/' + p.max + '</b></div><div class="sp-bar"><i style="width:' + (100 * p.score / p.max) + '%"></i></div>' + (SO_EXAMPLE ? '<div class="sp-n">' + esc(p.note) + '</div>' : '') + '</div>').join('') + (SO_EXAMPLE ? '' : '<div class="sp-n" style="margin-top:8px">Create an account to see what\u2019s behind each score.</div>') + '</div>';
     const delta = k.monthly_prev != null ? (k.monthly - k.monthly_prev) : null;
     $('kpis').innerHTML = [
       ['Monthly run-rate', money(k.monthly), delta == null ? 'latest bill from each account' : (Math.abs(delta) < 1 ? '<span>No change</span>' : '<span class="' + (delta > 0 ? 'delta-up' : 'delta-down') + '">' + (delta > 0 ? '+' : '') + money(delta) + '</span>') + ' vs previous bills', true],
@@ -163,7 +163,7 @@
 
   function renderInsights() {
     if (!A.teaser) {
-      $('insights').innerHTML = A.insights.map(i => '<div class="insight"><div class="k">' + esc(i.title) + '</div><div class="h">' + esc(i.headline) + '</div><div class="b">' + esc(i.body) + '</div>' +
+      $('insights').innerHTML = A.insights.map(i => '<div class="insight"><div class="k">' + esc(i.title) + (i.saving > 0 ? ' ' + shareBtn('insight', i.key) : '') + '</div><div class="h">' + esc(i.headline) + '</div><div class="b">' + esc(i.body) + '</div>' +
         (i.saving > 0 ? '<div class="save">Save up to ' + money(i.saving * 12) + ' a year</div>' : '') +
         (i.items.length ? '<ul>' + i.items.map(it => '<li><span><b>' + esc(it.label) + '</b><br><span class="d">' + esc(it.detail || '') + '</span></span><span class="num" style="text-align:right">' + ev(it.src, it.terms, esc(it.value), it.label) + '</span></li>').join('') + '</ul>' : '') + '</div>').join('');
       return;

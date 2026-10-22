@@ -2,18 +2,18 @@
 {% block body %}
 <section class="hero"><div class="wrap grid">
   <div>
-    <div class="eyebrow">Business mobile bill analysis</div>
-    <h1>Paying too much for your business mobiles? Get a second&nbsp;opinion.</h1>
-    <p class="lede">If you're wondering whether you're overpaying, or feel you don't have enough control over your spend, drop one or more of your recent 2degrees, Spark or One NZ mobile bills here. We'll analyse them for you.</p>
+    <div class="eyebrow">Business mobile &amp; broadband bill analysis</div>
+    <h1>Paying too much for your business mobiles and broadband? Get a second&nbsp;opinion.</h1>
+    <p class="lede">Drop in a recent bill from any NZ provider. In about a minute we read every line, show you exactly where the money goes - and link every figure back to the line on your bill it came from.</p>
     <p style="margin-top:22px"><a class="btn ghost" href="/example" onclick="window.soTrack && soTrack('example_cta')">See an example analysis</a></p>
-    <div class="carriers"><span class="chip"><span class="dot"></span>2degrees</span><span class="chip"><span class="dot" style="background:#7B2FF7"></span>Spark</span><span class="chip"><span class="dot" style="background:#1D292E"></span>One NZ</span></div>
+    <div class="chips-any"><span class="tiny">Any provider:</span>{% for code in ['2degrees','spark','one','skinny','mercury','contact','slingshot','sky'] %}<span class="chip">{{ carriers[code] }}</span>{% endfor %}<span class="chip">+ everyone else</span></div>
   </div>
   <div>
     <form class="drop" id="drop" onsubmit="return false">
       <div class="drop-inner" id="dropInner">
         <div class="drop-icon"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#009ED8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/><path d="M12 18v-6"/><path d="M9 14.5l3-3 3 3"/></svg></div>
         <h3>Drop your bills here</h3>
-        <p>or click to choose PDF files - add as many months as you like</p>
+        <p>or click to choose PDF files - mobile, broadband, or both. Add as many months as you like.</p>
         <input type="file" id="fileInput" accept="application/pdf,.pdf" multiple hidden>
       </div>
       <div class="files" id="fileList"></div>
@@ -23,17 +23,93 @@
       <div class="alert err hidden" id="dropErr"></div>
     </form>
     <p class="email-alt">Prefer email? Send your bills to <a href="mailto:{{ mail_address }}">{{ mail_address }}</a></p>
-    <p class="email-alt" style="margin-top:6px"><a href="/example" onclick="window.soTrack && soTrack('example_cta')">Not ready to share a bill? See an example analysis &rarr;</a></p>
+    <p class="email-alt" style="margin-top:6px">No login needed to see your result. Nothing is shared with anyone.</p>
   </div>
 </div></section>
 
-<section class="section alt" id="how"><div class="wrap">
-  <h2>How it works</h2>
-  <div class="steps">
-    <div class="step"><div class="n">1</div><h3>Send us your bills</h3><p>Upload PDFs here or email them in. The more months you add, the clearer the picture.</p></div>
-    <div class="step"><div class="n">2</div><h3>We read every line</h3><p>We break your bill down by person, plan, usage and extra charges, and track it month to month.</p></div>
-    <div class="step"><div class="n">3</div><h3>See where to save</h3><p>Spot idle lines, wrong-sized plans and roaming leakage - then ask us to make you an offer.</p></div>
+{% if meter.customers %}
+<section class="meter" id="meter"><div class="wrap">
+  <div class="meter-grid">
+    <div>
+      <div class="eyebrow">The NZ overpay meter</div>
+      <div class="meter-big"><span data-count="{{ meter.found_year }}">$0</span><small>a year</small></div>
+      <p class="meter-sub">Overpayment found so far on the bills we've read: idle lines, wrong-size plans, add-ons bought every month, roaming at the wrong rate, and plans priced above today's market.</p>
+      <div class="meter-stats">
+        <div><b data-count="{{ meter.bills }}" data-int="1">0</b><span>bills read</span></div>
+        <div><b data-count="{{ meter.lines + meter.services }}" data-int="1">0</b><span>services</span></div>
+        <div><b data-count="{{ meter.customers }}" data-int="1">0</b><span>businesses</span></div>
+        <div><b data-count="{{ meter.spend_year }}">$0</b><span>spend analysed / yr</span></div>
+      </div>
+    </div>
+    <div class="leak">
+      <h3>Who leaks the most? Share of lines idle, on the wrong-size plan, or priced above a like-for-like 2degrees plan</h3>
+      {% for p in meter.providers if p.lines %}
+      <div class="leak-row" style="--pc:{{ {'2degrees':'#009ED8','one':'#00A651','spark':'#D4287F','skinny':'#F5A623'}.get(p.code, '#8E9699') }}"><span class="nm"><i></i>{{ p.name }}</span><div class="leak-bar"><i data-w="{{ p.leak_pct }}"></i></div><span class="pct">{{ p.leak_pct }}%</span></div>
+      <div class="tiny" style="margin:-4px 0 6px 122px">{{ p.lines }} line{{ 's' if p.lines != 1 }}{% if p.above_pct %} &middot; {{ p.above_pct }}% above a like-for-like 2degrees price{% endif %}{% if p.extras_line %} &middot; {{ p.extras_line|money }}/line/mth in extras{% endif %}</div>
+      {% endfor %}
+      {% for p in meter.providers if not p.lines %}<div class="leak-row" style="--pc:#8E9699"><span class="nm"><i></i>{{ p.name }}</span><div class="tiny" style="margin:0">{{ p.services }} broadband connection{{ 's' if p.services != 1 }} read</div><span></span></div>{% endfor %}
+      <div class="tiny">Small sample so far: {{ meter.customers }} business{{ 'es' if meter.customers != 1 }}, {{ meter.bills }} bills. Every number is updated as bills come in; nothing is extrapolated.</div>
+    </div>
+  </div>
+  {% if meter.ticker %}
+  <div class="ticker"><div class="ticker-track">{% for t in meter.ticker + meter.ticker %}<span><b>&#9679;</b>{{ t.text }}<em>{{ t.prov }}</em></span>{% endfor %}</div></div>
+  {% endif %}
+</div></section>
+{% endif %}
+
+<section class="section" id="how"><div class="wrap">
+  <div class="xray">
+    <div>
+      <svg class="bill-svg" viewBox="0 0 520 420" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        <defs><clipPath id="paper"><rect x="40" y="20" width="300" height="380" rx="10"/></clipPath><linearGradient id="beam" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#009ED8" stop-opacity="0"/><stop offset="1" stop-color="#009ED8" stop-opacity=".35"/></linearGradient></defs>
+        <rect x="40" y="20" width="300" height="380" rx="10" fill="#fff" stroke="#E4E5E6"/>
+        <rect x="60" y="44" width="90" height="12" rx="3" fill="#003660"/><rect x="60" y="64" width="140" height="7" rx="3" fill="#E4E5E6"/>
+        <rect x="250" y="44" width="70" height="20" rx="4" fill="#F5F5F7"/>
+        {% for y in [110, 140, 170, 200, 230, 260, 290, 320, 350] %}
+        <rect x="60" y="{{ y }}" width="{{ [120, 150, 100, 135, 115, 160, 125, 140, 110][loop.index0] }}" height="8" rx="3" fill="#E4E5E6"/><rect x="270" y="{{ y - 1 }}" width="50" height="10" rx="3" fill="#D9DBDD"/>
+        {% endfor %}
+        <rect class="row-hl t1" x="52" y="134" width="276" height="20" rx="5" fill="#FEF2E5"/>
+        <rect class="row-hl t2" x="52" y="194" width="276" height="20" rx="5" fill="#FEF2E5"/>
+        <rect class="row-hl t3" x="52" y="254" width="276" height="20" rx="5" fill="#E0F3FA"/>
+        <rect class="row-hl t4" x="52" y="314" width="276" height="20" rx="5" fill="#FEF2E5"/>
+        <rect class="row-hl t5" x="52" y="344" width="276" height="20" rx="5" fill="#E0F3FA"/>
+        <g class="scan" clip-path="url(#paper)"><rect x="40" y="20" width="300" height="40" fill="url(#beam)"/><rect x="40" y="58" width="300" height="2" fill="#009ED8"/></g>
+        <g transform="translate(300 128)"><g class="tag t1"><rect width="150" height="30" rx="8" fill="#F1600D"/><text x="12" y="20" fill="#fff" font-size="12" font-weight="700" font-family="Figtree, sans-serif">Idle line · $43/mth</text></g></g>
+        <g transform="translate(300 188)"><g class="tag t2"><rect width="175" height="30" rx="8" fill="#F1600D"/><text x="12" y="20" fill="#fff" font-size="12" font-weight="700" font-family="Figtree, sans-serif">Data pack every month</text></g></g>
+        <g transform="translate(300 248)"><g class="tag t3"><rect width="195" height="30" rx="8" fill="#003660"/><text x="12" y="20" fill="#fff" font-size="12" font-weight="700" font-family="Figtree, sans-serif">Companion needs lead line</text></g></g>
+        <g transform="translate(300 308)"><g class="tag t4"><rect width="170" height="30" rx="8" fill="#F1600D"/><text x="12" y="20" fill="#fff" font-size="12" font-weight="700" font-family="Figtree, sans-serif">$4,008 still on phones</text></g></g>
+        <g transform="translate(300 338)"><g class="tag t5"><rect width="170" height="30" rx="8" fill="#009ED8"/><text x="12" y="20" fill="#fff" font-size="12" font-weight="700" font-family="Figtree, sans-serif">3 months free on fibre</text></g></g>
+      </svg>
+    </div>
+    <div class="xray-steps">
+      <div class="eyebrow">How it works</div>
+      <h2 style="margin-bottom:18px">We read the bill the way an account manager would - then show you our working.</h2>
+      <div class="step"><div class="n">1</div><h3>Send us your bills</h3><p>Upload PDFs here or email them in. Mobile, broadband, or an energy bill with broadband on it. The more months, the clearer the picture.</p></div>
+      <div class="step"><div class="n">2</div><h3>Every line, decoded</h3><p>Who is on what plan, what it really costs, what's leaking into add-ons and roaming, what's still owing on phones. Click any figure and see it highlighted on your own bill.</p></div>
+      <div class="step"><div class="n">3</div><h3>Compared with today's market</h3><p>A like-for-like 2degrees setup, with the promotions and member discounts published on 2degrees.nz right now - and a health score you can share.</p></div>
+    </div>
+  </div>
+</div></section>
+
+<section class="section alt"><div class="wrap">
+  <div class="trust">
+    <div><b>Show-your-working</b>Every dotted figure in your analysis links to the exact line on your bill it came from.</div>
+    <div><b>Published prices only</b>Comparisons use the plans, promotions and member offers on the providers' own websites, re-read every fortnight.</div>
+    <div><b>No login to look</b>Your result appears straight away. Create an account only if you want to keep it.</div>
+    <div><b>Who pays for this</b>SecondOpinion is a 2degrees initiative. We say so, and we still show you when you're already on a good deal.</div>
   </div>
 </div></section>
 {% endblock %}
-{% block scripts %}<script src="/static/js/upload.js?v={{ version }}"></script>{% endblock %}
+{% block scripts %}
+<script src="/static/js/charts.js?v={{ version }}"></script>
+<script src="/static/js/upload.js?v={{ version }}"></script>
+<script>
+(function () {
+  const m = document.getElementById('meter');
+  if (!m) return;
+  let done = false;
+  const go = () => { if (done) return; done = true; SO.countUp(m); m.querySelectorAll('.leak-bar i').forEach(i => { i.style.width = i.dataset.w + '%'; }); };
+  if ('IntersectionObserver' in window) { const io = new IntersectionObserver(es => { if (es.some(e => e.isIntersecting)) { go(); io.disconnect(); } }, { threshold: 0.25 }); io.observe(m); } else go();
+})();
+</script>
+{% endblock %}

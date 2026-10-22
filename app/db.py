@@ -303,6 +303,21 @@ CREATE TABLE IF NOT EXISTS benefits (
     active INTEGER NOT NULL DEFAULT 1
 );
 
+-- Anonymised shareable cards (one finding, one number) for word of mouth
+CREATE TABLE IF NOT EXISTS share_cards (
+    id INTEGER PRIMARY KEY,
+    token TEXT UNIQUE NOT NULL,
+    owner_email TEXT,
+    session_id TEXT,
+    kind TEXT NOT NULL,
+    title TEXT NOT NULL,
+    big TEXT NOT NULL,
+    body TEXT NOT NULL,
+    provider TEXT,
+    views INTEGER NOT NULL DEFAULT 0,
+    created_at REAL NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS settings (
     key TEXT PRIMARY KEY,
     value TEXT
@@ -349,6 +364,13 @@ def init():
                 c.execute(m)
             except sqlite3.OperationalError:
                 pass
+        # V2: the offer page shows what is actually published on 2degrees.nz; the placeholder offers seeded by V1
+        # are switched off once (the superadmin can re-enable them under Admin > Offers)
+        if not c.execute("SELECT 1 FROM settings WHERE key='offers_seed_retired'").fetchone():
+            c.execute("UPDATE offers SET active=0 WHERE title IN ('3 months free','6 months free','$2,000 sign-on credit')"
+                      " AND subtitle IN ('on every line you bring across on a 24-month business plan',"
+                      " 'for teams moving 10 or more lines', 'to help clear interest-free hardware on your current account')")
+            c.execute("INSERT INTO settings(key, value) VALUES ('offers_seed_retired', '1')")
         if c.execute("SELECT COUNT(*) FROM offers").fetchone()[0] == 0:
             now = time.time()
             for i, (title, subtitle, badge) in enumerate([

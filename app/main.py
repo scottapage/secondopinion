@@ -14,7 +14,8 @@ from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.sessions import SessionMiddleware
 
-from . import analysis, catalogue, chat, db, dossier, evidence, example, extract, ingest, learning, mailer, notify, security, visitors
+from . import (analysis, catalogue, chat, db, dossier, evidence, example, extract, ingest, learning, mailer, meter, notify,
+               security, share, visitors)
 from .config import (BASE_URL, CARRIERS, CHART_DIR, DATA_DIR, MAX_UPLOAD_MB, SECRET_KEY, SECRET_SETTINGS, SETUP_TOKEN,
                      SUPERADMIN_EMAIL, carrier_label)
 from .tpl import render
@@ -123,7 +124,45 @@ def healthz():
 @app.get("/", response_class=HTMLResponse)
 def index(request: Request):
     sid(request)
-    return page(request, "index.html")
+    return page(request, "index.html", meter=meter.get(), carriers=CARRIERS)
+
+
+@app.get("/api/meter")
+def api_meter():
+    return JSONResponse(meter.get(), headers={"Cache-Control": "public, max-age=300"})
+
+
+# ---------- shareable cards ----------
+
+@app.post("/api/share")
+async def api_share(request: Request):
+    body = await request.json()
+    kind, key = str(body.get("kind") or "")[:20], str(body.get("key") or "")[:30]
+    email = current_email(request)
+    token = share.create(kind, key, owner_email=email, session_id=None if email else sid(request))
+    if not token:
+        raise HTTPException(400, "Nothing to share yet")
+    card = share.get(token)
+    return {"url": share.url(token), "title": card["title"], "big": card["big"], "body": card["body"],
+            "image": f"{BASE_URL}/s/{token}.png"}
+
+
+@app.get("/s/{token}.png")
+def share_image(token: str):
+    card = share.get(re.sub(r"[^\w-]", "", token))
+    if not card:
+        raise HTTPException(404)
+    return FileResponse(share.image(card), media_type="image/png", headers={"Cache-Control": "public, max-age=86400"})
+
+
+@app.get("/s/{token}", response_class=HTMLResponse)
+def share_page(request: Request, token: str):
+    card = share.get(re.sub(r"[^\w-]", "", token))
+    if not card:
+        raise HTTPException(404)
+    db.x("UPDATE share_cards SET views=views+1 WHERE id=?", (card["id"],))
+    db.log_event("share_viewed", None, sid(request), card=card["kind"])
+    return page(request, "share.html", card=card)
 
 
 @app.post("/api/upload")
@@ -520,8 +559,24 @@ def offer_page(request: Request):
         return RedirectResponse("/register?next=/offer", 303)
     offers = db.q("SELECT * FROM offers WHERE active=1 ORDER BY sort, id")
     a = analysis.build(email=email)
-    return page(request, "offer.html", offers=offers, a=a, booking_url=db.get_setting("booking_url"),
-                sent=request.query_params.get("sent"))
+    return page(request, "offer.html", offers=offers, published=published_offers(), a=a,
+                booking_url=db.get_setting("booking_url"), sent=request.query_params.get("sent"))
+
+
+def published_offers():
+    """Offers as published on 2degrees.nz right now: plan promotions from the catalogue and association discounts
+    from the benefits research. Nothing invented."""
+    out = []
+    for r in db.q("SELECT * FROM plan_catalogue WHERE active=1 AND provider='2degrees' AND promo_months>0"
+                  " ORDER BY category, price_excl_gst"):
+        out.append({"title": r["promo_text"], "plan": f"{r['plan_name']} - {analysis.fmt_money(r['price_excl_gst'], 2)}/mth excl GST",
+                    "badge": "Business " + r["category"], "detail": (r["conditions"] or "")[:220], "url": r["source_url"],
+                    "key": f"promo:{r['plan_name']}"})
+    for b in db.q("SELECT * FROM benefits WHERE active=1 AND provider='2degrees' AND category='discount' ORDER BY id"):
+        if re.search(r"chamber|member|association|partner", (b["title"] or "").lower()):
+            out.append({"title": b["title"], "plan": b["value"] or "", "badge": "Members", "detail": (b["detail"] or "")[:220],
+                        "url": b["source_url"], "key": f"benefit:{b['title']}"})
+    return out[:8]
 
 
 @app.post("/offer")

@@ -86,7 +86,34 @@ window.SO = (function () {
     const q = (terms || []).filter(t => t != null && t !== '').map(t => typeof t === 'number' ? t.toFixed(2) : String(t)).join(',');
     return '<a class="ev" href="/bill/' + src.invoice_id + '?q=' + encodeURIComponent(q) + (label ? '&label=' + encodeURIComponent(label) : '') + '" title="See it on your bill">' + inner + '</a>';
   };
+  // Shareable card: creates an anonymised card for a finding and opens the share sheet
+  const shareBtn = (kind, key) => window.SO_EXAMPLE ? '' : '<button class="share-btn" data-share-kind="' + kind + '" data-share-key="' + (key || '') + '" type="button">&#x2197; Share this</button>';
+  async function share(kind, key) {
+    let r;
+    try { r = await fetch('/api/share', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ kind, key }) }); } catch (e) { return; }
+    if (!r.ok) { alert('Nothing to share yet.'); return; }
+    const j = await r.json();
+    const esc = (t) => String(t == null ? '' : t).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+    const u = encodeURIComponent(j.url), t = encodeURIComponent(j.title + ': ' + j.big);
+    const box = document.createElement('div'); box.className = 'share-modal';
+    box.innerHTML = '<div class="box"><img src="' + esc(j.image) + '" alt=""><p class="small muted" style="margin:12px 0 4px">Anonymised: no names, numbers or company. Just the finding.</p>' +
+      '<div class="share-row"><button class="btn sm" data-a="copy">Copy link</button>' +
+      (navigator.share ? '<button class="btn sm ghost" data-a="native">Share…</button>' : '') +
+      '<a class="btn sm ghost" target="_blank" rel="noopener" href="https://www.linkedin.com/sharing/share-offsite/?url=' + u + '">LinkedIn</a>' +
+      '<a class="btn sm ghost" target="_blank" rel="noopener" href="https://wa.me/?text=' + t + '%20' + u + '">WhatsApp</a>' +
+      '<a class="btn sm ghost" target="_blank" rel="noopener" href="https://twitter.com/intent/tweet?text=' + t + '&url=' + u + '">X</a>' +
+      '<a class="btn sm ghost" href="mailto:?subject=' + t + '&body=' + encodeURIComponent(j.body) + '%0A%0A' + u + '">Email</a>' +
+      '<button class="btn sm ghost" data-a="close" style="margin-left:auto">Close</button></div><div class="tiny" style="margin-top:8px"><a href="' + esc(j.url) + '" target="_blank">' + esc(j.url) + '</a> <span data-msg></span></div></div>';
+    document.body.appendChild(box);
+    box.addEventListener('click', async (e) => {
+      const a = e.target.dataset && e.target.dataset.a;
+      if (e.target === box || a === 'close') box.remove();
+      if (a === 'copy') { try { await navigator.clipboard.writeText(j.url); box.querySelector('[data-msg]').textContent = 'copied'; } catch (err) {} }
+      if (a === 'native') { try { await navigator.share({ title: j.title + ': ' + j.big, text: j.body, url: j.url }); } catch (err) {} }
+    });
+  }
+  document.addEventListener('click', (e) => { const b = e.target.closest && e.target.closest('[data-share-kind]'); if (b) { e.preventDefault(); e.stopPropagation(); share(b.dataset.shareKind, b.dataset.shareKey); } });
   const initials = (name) => (name || '?').split(/\s+/).filter(Boolean).slice(0, 2).map(w => w[0].toUpperCase()).join('') || '?';
 
-  return { C, SERIES, CAT, money, make, axisX, axisY, sparkline, fromSpec, base, PROV, provColor, provName, provBadge, scoreRing, countUp, initials, ev };
+  return { C, SERIES, CAT, money, make, axisX, axisY, sparkline, fromSpec, base, PROV, provColor, provName, provBadge, scoreRing, countUp, initials, ev, share, shareBtn };
 })();

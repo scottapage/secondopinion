@@ -14,7 +14,7 @@ LABELS = {
     "email_captured": "asked for the summary by email", "email_verified_by_link": "verified email via link",
     "registered": "created an account", "dashboard_viewed": "opened the dashboard", "chat": "asked the AI",
     "offer_request": "requested an offer", "invoice_processed": "bill analysed", "share_created": "made a share card",
-    "share_viewed": "share card viewed",
+    "share_viewed": "share card viewed", "evidence_viewed": "checked a figure on the bill",
 }
 
 
