@@ -47,22 +47,18 @@ AUDIT_SCHEMA = {
 def audit(invoice_id, path, data):
     """Returns (data_to_use, audit_result)."""
     from . import extract
-    with open(path, "rb") as f:
-        b64 = base64.standard_b64encode(f.read()).decode()
-    content = [
-        {"type": "document", "source": {"type": "base64", "media_type": "application/pdf", "data": b64}},
-        {"type": "text", "text": "Extraction to audit:\n" + json.dumps(data, separators=(",", ":"))},
-    ]
-    result, model = ai.claude_json(AUDIT_PROMPT + _guide_block(data.get("carrier")), content,
-                                   AUDIT_SCHEMA, "audit", invoice_id, effort="high")
+    _, text = extract.read_pdf(path)
+    result, model = ai.json_call(AUDIT_PROMPT + _guide_block(data.get("carrier")),
+                                 "Extraction to audit:\n" + json.dumps(data, separators=(",", ":")),
+                                 AUDIT_SCHEMA, "audit", invoice_id, pdf_path=path, pdf_text=text, effort="high")
     applied = 0
     use = data
     if result["verdict"] == "corrected" and result["corrections"]:
         # Re-extract with the auditor's findings as instructions
-        _, text = extract.read_pdf(path)
         fb = ("An independent audit of a previous extraction of this bill found these errors - apply them, and "
               "re-check everything else:\n" + json.dumps(result["corrections"]))
-        fixed, _ = extract._run_extraction(path, text, data.get("carrier"), "claude", invoice_id, fb, effort="high")
+        fixed, _ = extract._run_extraction(path, text, data.get("carrier"), db.get_setting("learning_provider") or "claude",
+                                           invoice_id, fb, effort="high")
         ok0, d0 = extract.reconcile(data)
         ok1, d1 = extract.reconcile(fixed)
         # Accept the corrected version unless it reconciles worse than the original
@@ -109,8 +105,7 @@ def update_guide(invoice_id, carrier, text, data, audit_result):
            f"\nAuditor's format observations: {json.dumps(audit_result.get('format_observations', []))}"
            f"\n\nFinal extraction:\n{json.dumps(data, separators=(',', ':'))[:20000]}"
            f"\n\nBill text (text layer):\n{(text or '(scanned - no text layer)')[:20000]}")
-    out, _ = ai.claude_json(GUIDE_PROMPT, [{"type": "text", "text": msg}], GUIDE_SCHEMA, "guide", invoice_id,
-                            effort="medium")
+    out, _ = ai.json_call(GUIDE_PROMPT, msg, GUIDE_SCHEMA, "guide", invoice_id, effort="medium")
     if not out["changed"] and current:
         db.x("UPDATE format_guides SET bills_seen=bills_seen+1 WHERE carrier=?", (carrier,))
         return
@@ -212,8 +207,7 @@ def review_customer(owner_email, session_id, invoice_id):
            f"{catalogue_text(carriers)}\n\nProvider benefits beyond price (roaming, included value, association "
            f"discounts, support), from provider websites:\n{benefits_text(carriers)}\n\nFinding types already proposed (do not repeat or rephrase these):\n"
            + "\n".join(f"- {t}" for t in known))
-    out, _ = ai.claude_json(REVIEW_PROMPT, [{"type": "text", "text": msg}], REVIEW_SCHEMA, "review", invoice_id,
-                            effort="medium")
+    out, _ = ai.json_call(REVIEW_PROMPT, msg, REVIEW_SCHEMA, "review", invoice_id, effort="medium")
     owner = owner_email or f"session:{session_id}"
     db.x("INSERT INTO customer_notes(owner, notes, updated_at) VALUES (?,?,?) ON CONFLICT(owner) DO UPDATE SET"
          " notes=excluded.notes, updated_at=excluded.updated_at",
@@ -348,8 +342,7 @@ def maybe_generate_parser(carrier):
     msg = f"Carrier: {carrier}\n\nFormat guide:\n{guide(carrier)}\n\n" + "\n\n".join(
         f"=== Reference {k + 1}: text layer ===\n{t[:15000]}\n=== Reference {k + 1}: correct extraction ===\n"
         f"{json.dumps(d, separators=(',', ':'))[:12000]}" for k, (_, t, d) in enumerate(shown))
-    spec, _ = ai.claude_json(PARSER_PROMPT, [{"type": "text", "text": msg}], PARSER_SCHEMA, "parser", None,
-                             effort="high")
+    spec, _ = ai.json_call(PARSER_PROMPT, msg, PARSER_SCHEMA, "parser", None, effort="high")
     spec["carrier"] = carrier
     pid = db.x("INSERT INTO parsers(carrier, code, created_at) VALUES (?,?,?)", (carrier, json.dumps(spec),
                                                                                  time.time()))

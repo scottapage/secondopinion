@@ -25,7 +25,15 @@ SETTING_DEFAULTS = {
     "mail_polling": "on",
     "sales_email": SUPERADMIN_EMAIL,
     "booking_url": "",
-    "ai_provider": "claude",  # claude | local | local_fallback
+    "ai_provider": "claude",  # claude | openai | openai_fallback | local | local_fallback  (bill reader)
+    "learning_provider": "claude",  # claude | openai  (audit, format guide, expert review, parser recipes)
+    "openai_base_url": "",  # any OpenAI-compatible API, e.g. https://api.openai.com/v1, https://openrouter.ai/api/v1
+    "openai_api_key": os.environ.get("OPENAI_API_KEY", ""),
+    "openai_model": "",
+    "openai_vision": "on",  # send page images for scanned bills (model must accept image_url)
+    "openai_vision_always": "off",  # send page images for every bill, not just scanned ones
+    "openai_price_in": "0",  # USD per million input tokens, for the cost log
+    "openai_price_out": "0",
     "claude_model": "claude-opus-5-5",
     "chat_model": "claude-opus-5-5",
     "local_ai_url": "",  # e.g. http://macbook.tailnet.ts.net:1234/v1
@@ -40,7 +48,7 @@ SETTING_DEFAULTS = {
     "own_emails": "s.page@centastone.co.nz",  # comma-separated: the superadmin's own test addresses (no alerts)
 }
 
-SECRET_SETTINGS = {"anthropic_api_key", "mail_password"}
+SECRET_SETTINGS = {"anthropic_api_key", "mail_password", "openai_api_key"}
 
 # Providers we recognise on bills. The big three have plan catalogues and benefits research; the rest are
 # read the same way (mobile and/or broadband), and anything else arrives as "other" with the name from the bill.

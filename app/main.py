@@ -805,7 +805,8 @@ def admin_knowledge_add(request: Request, carrier: str = Form(...), kind: str = 
 
 EDITABLE = ["sales_email", "booking_url", "ai_provider", "claude_model", "chat_model", "local_ai_url",
             "local_ai_model", "mail_polling", "mail_user", "mail_address", "imap_host", "smtp_host",
-            "alerts", "digest", "alert_email", "own_emails"]
+            "alerts", "digest", "alert_email", "own_emails", "learning_provider", "openai_base_url", "openai_model",
+            "openai_vision", "openai_vision_always", "openai_price_in", "openai_price_out"]
 
 
 @app.get("/admin/settings", response_class=HTMLResponse)
@@ -818,6 +819,7 @@ def admin_settings(request: Request):
                 mail_status=json.loads(db.get_setting("mail_status") or "{}"),
                 worker_age=time.time() - hb if hb else None, saved=request.query_params.get("saved"),
                 last_test=db.get_setting("last_test_email"), deploy_log=_deploy_log(),
+                last_ai_test=db.get_setting("last_ai_test"),
                 branch=BRANCH, deploy_target=deploy_branch(), site_versions=SITE_VERSIONS,
                 queue=db.q1("SELECT COUNT(*) n FROM invoices WHERE status IN ('queued','processing')")["n"])
 
@@ -854,6 +856,18 @@ def setup_site_version(token: str = Form(...), branch: str = Form(...)):
         raise HTTPException(404)
     set_deploy_branch(branch)
     return {"ok": True, "deploying": branch, "running": BRANCH}
+
+
+@app.post("/admin/ai-test")
+def admin_ai_test(request: Request):
+    require_admin(request)
+    from . import ai
+    try:
+        msg = ai.openai_test()
+    except Exception as e:
+        msg = f"failed: {type(e).__name__}: {e}"[:300]
+    db.set_setting("last_ai_test", f"{time.strftime('%H:%M:%S')} {msg}")
+    return RedirectResponse("/admin/settings?saved=aitest", 303)
 
 
 @app.post("/admin/test-email")

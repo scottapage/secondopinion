@@ -1,6 +1,6 @@
 {% extends "admin/_base.html" %}
 {% block admin %}
-{% if saved %}<div class="alert ok" style="margin-bottom:16px">{{ {'1':'Settings saved.','test':'Test email: ' ~ (last_test or ''),'poll':'Mailbox check started - refresh in a few seconds.','digest':'Digest is on its way to your inbox.','version':'Site version switched - the server redeploys within a minute (watch Version below).'}[saved] }}</div>{% endif %}
+{% if saved %}<div class="alert ok" style="margin-bottom:16px">{{ {'1':'Settings saved.','test':'Test email: ' ~ (last_test or ''),'poll':'Mailbox check started - refresh in a few seconds.','digest':'Digest is on its way to your inbox.','aitest':'API test: ' ~ (last_ai_test or ''),'version':'Site version switched - the server redeploys within a minute (watch Version below).'}[saved] }}</div>{% endif %}
 <div class="grid-2">
   <div class="card"><h3>System status</h3>
     <dl class="kv" style="margin-top:12px">
@@ -36,13 +36,25 @@
 <form method="post" action="/admin/settings" class="grid-2" style="margin-top:20px">
   <div class="card"><h3>AI analysis</h3>
     <label class="field"><span>Bill reader</span><select name="ai_provider">
-      {% for v, l in [('claude','Claude (recommended)'),('local_fallback','Local model first, Claude if unavailable or unreconciled'),('local','Local model only (Claude for scanned bills)')] %}<option value="{{ v }}" {{ 'selected' if vals.ai_provider == v }}>{{ l }}</option>{% endfor %}</select></label>
+      {% for v, l in [('claude','Claude (recommended)'),('openai','OpenAI-compatible API below'),('openai_fallback','OpenAI-compatible API first, Claude if it fails'),('local_fallback','Local model first, Claude if unavailable or unreconciled'),('local','Local model only (Claude for scanned bills)')] %}<option value="{{ v }}" {{ 'selected' if vals.ai_provider == v }}>{{ l }}</option>{% endfor %}</select></label>
+    <label class="field"><span>Learning passes (audit, format guide, expert review, parser recipes)</span><select name="learning_provider">
+      {% for v, l in [('claude','Claude'),('openai','OpenAI-compatible API below')] %}<option value="{{ v }}" {{ 'selected' if vals.learning_provider == v }}>{{ l }}</option>{% endfor %}</select></label>
+    <p class="tiny" style="margin:-4px 0 10px">The plan-catalogue and benefits research agents and "Ask AI" use Claude's tool-use loop and stay on Claude.</p>
     <label class="field"><span>Claude model for bills</span><input type="text" name="claude_model" value="{{ vals.claude_model }}"></label>
     <label class="field"><span>Claude model for Ask AI</span><input type="text" name="chat_model" value="{{ vals.chat_model }}"></label>
+    <label class="field"><span>Anthropic API key (leave blank to keep)</span><input type="password" name="anthropic_api_key" autocomplete="off"></label>
+    <h3 style="margin-top:18px;font-size:16px">OpenAI-compatible API</h3>
+    <p class="tiny" style="margin:4px 0 8px">Works with OpenAI (https://api.openai.com/v1), Google Gemini (https://generativelanguage.googleapis.com/v1beta/openai), OpenRouter (https://openrouter.ai/api/v1), Groq, xAI, Mistral, Ollama and LM Studio. The model must support JSON output; vision models can also read scanned bills.</p>
+    <label class="field"><span>Base URL</span><input type="text" name="openai_base_url" value="{{ vals.openai_base_url }}" placeholder="https://api.openai.com/v1"></label>
+    <div class="grid-2" style="gap:12px"><label class="field"><span>Model</span><input type="text" name="openai_model" value="{{ vals.openai_model }}" placeholder="gpt-5"></label><label class="field"><span>API key (leave blank to keep{{ ', set' if secrets_set.openai_api_key }})</span><input type="password" name="openai_api_key" autocomplete="off"></label></div>
+    <div class="grid-2" style="gap:12px">
+      <label class="field"><span>Page images for scanned bills</span><select name="openai_vision"><option value="on" {{ 'selected' if vals.openai_vision == 'on' }}>On</option><option value="off" {{ 'selected' if vals.openai_vision != 'on' }}>Off</option></select></label>
+      <label class="field"><span>Page images for every bill</span><select name="openai_vision_always"><option value="off" {{ 'selected' if vals.openai_vision_always != 'on' }}>Off (text layer only)</option><option value="on" {{ 'selected' if vals.openai_vision_always == 'on' }}>On</option></select></label>
+    </div>
+    <div class="grid-2" style="gap:12px"><label class="field"><span>USD per 1M input tokens (cost log)</span><input type="text" name="openai_price_in" value="{{ vals.openai_price_in }}"></label><label class="field"><span>USD per 1M output tokens</span><input type="text" name="openai_price_out" value="{{ vals.openai_price_out }}"></label></div>
     <label class="field"><span>Local AI URL (LM Studio over Tailscale)</span><input type="text" name="local_ai_url" value="{{ vals.local_ai_url }}" placeholder="http://macbook-pro.tailnet.ts.net:1234/v1"></label>
     <label class="field"><span>Local model name</span><input type="text" name="local_ai_model" value="{{ vals.local_ai_model }}"></label>
-    <label class="field"><span>Anthropic API key (leave blank to keep)</span><input type="password" name="anthropic_api_key" autocomplete="off"></label>
-    <button class="btn" style="margin-top:16px">Save</button>
+    <div style="display:flex;gap:10px;align-items:center;margin-top:16px;flex-wrap:wrap"><button class="btn">Save</button><button class="btn ghost sm" formaction="/admin/ai-test">Test the OpenAI-compatible API</button>{% if last_ai_test %}<span class="tiny">{{ last_ai_test }}</span>{% endif %}</div>
   </div>
   <div class="card"><h3>Mailbox</h3>
     <label class="field"><span>Polling</span><select name="mail_polling"><option value="on" {{ 'selected' if vals.mail_polling == 'on' }}>On - check every minute</option><option value="off" {{ 'selected' if vals.mail_polling != 'on' }}>Off</option></select></label>

@@ -276,6 +276,7 @@ def reconcile(data):
 
 
 def _run_extraction(path, text, carrier_hint, provider, invoice_id, feedback=None, effort="medium"):
+    """provider: claude | local | openai."""
     system = BASE_PROMPT + knowledge_prompt(carrier_hint)
     instr = "Extract this invoice."
     if carrier_hint:
@@ -286,13 +287,8 @@ def _run_extraction(path, text, carrier_hint, provider, invoice_id, feedback=Non
         data, model = ai.local_json(system, instr + "\n\nInvoice text:\n" + text[:150000], SCHEMA, "extract",
                                     invoice_id)
         return normalise(data), model
-    with open(path, "rb") as f:
-        b64 = base64.standard_b64encode(f.read()).decode()
-    content = [
-        {"type": "document", "source": {"type": "base64", "media_type": "application/pdf", "data": b64}},
-        {"type": "text", "text": instr},
-    ]
-    data, model = ai.claude_json(system, content, SCHEMA, "extract", invoice_id, effort=effort)
+    data, model = ai.json_call(system, instr, SCHEMA, "extract", invoice_id, pdf_path=path, pdf_text=text,
+                               effort=effort, provider=provider)
     return normalise(data), model
 
 
@@ -307,25 +303,29 @@ def extract(path, text, carrier_hint, invoice_id):
     provider = "claude"
     if setting in ("local", "local_fallback") and text and len(text) > 200 and ai.local_available():
         provider = "local"
+    elif setting in ("openai", "openai_fallback"):
+        provider = "openai"
     try:
         data, model = _run_extraction(path, text, carrier_hint, provider, invoice_id)
     except Exception:
-        if provider != "local":
+        if provider == "claude" or setting in ("local", "openai"):
             raise
+        traceback.print_exc()
         provider = "claude"
         data, model = _run_extraction(path, text, carrier_hint, provider, invoice_id)
 
     ok, diff = reconcile(data)
     if data.get("is_mobile_bill") and not ok and diff is not None:
-        # Self-correction pass with the discrepancy pointed out (always on Claude, higher effort)
+        # Self-correction pass with the discrepancy pointed out (higher effort; Claude unless the reader is pinned)
         fb = (f"A previous extraction of this bill produced line totals plus account charges that differ from the "
               f"invoice total (excl GST) by {diff:+.2f}. Re-check every line and charge carefully - look for missed "
               f"lines, account-level charges, credits, or GST-inclusive figures.")
         try:
-            data2, model2 = _run_extraction(path, text, carrier_hint, "claude", invoice_id, fb, effort="high")
+            p2 = "openai" if setting == "openai" else "claude"
+            data2, model2 = _run_extraction(path, text, carrier_hint, p2, invoice_id, fb, effort="high")
             ok2, diff2 = reconcile(data2)
             if diff2 is not None and abs(diff2) < abs(diff):
-                data, model, ok, diff, provider = data2, model2, ok2, diff2, "claude"
+                data, model, ok, diff, provider = data2, model2, ok2, diff2, p2
         except Exception:
             traceback.print_exc()
     return data, provider, model, ok, diff
