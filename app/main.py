@@ -895,6 +895,64 @@ def admin_site_version(request: Request, branch: str = Form(...)):
     return RedirectResponse("/admin/settings?saved=version", 303)
 
 
+@app.get("/setup/backup")
+def setup_backup(token: str = ""):
+    """Diagnostics: a tar.gz of the database (consistent snapshot) and the bill PDFs, for moving servers."""
+    if not SETUP_TOKEN or token != SETUP_TOKEN:
+        raise HTTPException(404)
+    import io
+    import sqlite3
+    import tarfile
+    import tempfile
+    tmp = tempfile.NamedTemporaryFile(suffix=".sqlite", delete=False)
+    tmp.close()
+    src = sqlite3.connect(db.DB_PATH)
+    dst = sqlite3.connect(tmp.name)
+    src.backup(dst)
+    dst.close()
+    src.close()
+    buf = io.BytesIO()
+    with tarfile.open(fileobj=buf, mode="w:gz") as tar:
+        tar.add(tmp.name, arcname="secondopinion.sqlite")
+        if (DATA_DIR / "invoices").exists():
+            tar.add(DATA_DIR / "invoices", arcname="invoices")
+    os.unlink(tmp.name)
+    from fastapi.responses import Response
+    return Response(buf.getvalue(), media_type="application/gzip",
+                    headers={"Content-Disposition": 'attachment; filename="secondopinion-backup.tar.gz"'})
+
+
+@app.post("/setup/restore")
+async def setup_restore(token: str = Form(...), file: UploadFile = File(...)):
+    """Diagnostics: load a backup made by /setup/backup onto a fresh server (replaces the database)."""
+    if not SETUP_TOKEN or token != SETUP_TOKEN:
+        raise HTTPException(404)
+    import tarfile
+    import tempfile
+    data = await file.read()
+    with tempfile.TemporaryDirectory() as td:
+        with tarfile.open(fileobj=__import__("io").BytesIO(data), mode="r:gz") as tar:
+            tar.extractall(td, filter="data")
+        src = Path(td) / "secondopinion.sqlite"
+        if not src.exists():
+            raise HTTPException(400, "No database in the backup")
+        for suffix in ("-wal", "-shm"):
+            p = Path(str(db.DB_PATH) + suffix)
+            if p.exists():
+                p.unlink()
+        __import__("shutil").copy(src, db.DB_PATH)
+        inv = Path(td) / "invoices"
+        n = 0
+        if inv.exists():
+            for f in inv.rglob("*.pdf"):
+                dest = DATA_DIR / "invoices" / f.relative_to(inv)
+                dest.parent.mkdir(parents=True, exist_ok=True)
+                __import__("shutil").copy(f, dest)
+                n += 1
+    db.init()
+    return {"ok": True, "pdfs": n, "invoices": db.q1("SELECT COUNT(*) n FROM invoices")["n"]}
+
+
 @app.post("/setup/site-lock")
 def setup_site_lock(token: str = Form(...), state: str = Form(...)):
     if not SETUP_TOKEN or token != SETUP_TOKEN:
