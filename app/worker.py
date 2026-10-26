@@ -111,7 +111,10 @@ def main():
     db.x("UPDATE invoices SET learning_state='done' WHERE learning_state='running'")
     example.seed(force=db.get_setting("example_version") != "3")
     if db.get_setting("catalogue_requested") == "running":
-        db.set_setting("catalogue_requested", "1")
+        # Interrupted mid-run (a deploy restarts the worker): resume as a nightly run, which skips providers whose
+        # pages haven't changed since they were last read, rather than forcing everything again
+        db.set_setting("catalogue_requested", "0")
+        db.set_setting("catalogue_ran", "")
     threading.Thread(target=mail_loop, daemon=True).start()
     threading.Thread(target=catalogue_loop, daemon=True).start()
     threading.Thread(target=digest_loop, daemon=True).start()
