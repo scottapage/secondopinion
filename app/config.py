@@ -30,6 +30,7 @@ SETTING_DEFAULTS = {
     "openai_base_url": "",  # any OpenAI-compatible API, e.g. https://api.openai.com/v1, https://openrouter.ai/api/v1
     "openai_api_key": os.environ.get("OPENAI_API_KEY", ""),
     "openai_model": "",
+    "openai_fallback": "on",  # if the OpenAI-compatible API fails (credit, rate limit, outage), use Claude instead
     "openai_temperature": "",  # blank = let the model default (Kimi K3 only accepts 1)
     "openai_vision": "on",  # send page images for scanned bills (model must accept image_url)
     "openai_vision_always": "off",  # send page images for every bill, not just scanned ones

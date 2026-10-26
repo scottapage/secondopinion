@@ -7,7 +7,7 @@ import urllib.request
 from . import analysis, db
 from .config import SUPERADMIN_EMAIL
 
-SKIP = {"error", "email_sent", "bills_moved", "site_version", "catalogue", "benefits"}
+SKIP = {"error", "email_sent", "bills_moved", "site_version", "catalogue", "benefits", "ai_fallback"}
 LABELS = {
     "upload_intent": "touched the upload box", "files_selected": "chose files", "upload": "uploaded bills",
     "email_received": "emailed bills in", "results_viewed": "viewed results", "example_viewed": "viewed the example",

@@ -201,7 +201,14 @@ def json_call(system, instruction, schema, purpose, invoice_id=None, pdf_path=No
         if pdf_path and db.get_setting("openai_vision") == "on" and (not pdf_text or len(pdf_text) < 200 or
                                                                       db.get_setting("openai_vision_always") == "on"):
             images = _page_images(pdf_path)
-        return openai_json(system, text, schema, purpose, invoice_id, images=images)
+        try:
+            return openai_json(system, text, schema, purpose, invoice_id, images=images)
+        except Exception as e:
+            # Out of credit, rate limited, down, or a malformed answer: carry on with Claude and leave a trace
+            if db.get_setting("openai_fallback") != "on":
+                raise
+            db.log_event("ai_fallback", None, None, purpose=purpose, invoice_id=invoice_id,
+                         error=f"{type(e).__name__}: {e}"[:300])
     content = []
     if pdf_path:
         with open(pdf_path, "rb") as f:
