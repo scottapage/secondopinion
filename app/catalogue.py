@@ -8,7 +8,7 @@ import time
 import traceback
 
 from . import ai, db
-from .config import CARRIERS
+from .config import CARRIERS, DATA_DIR
 
 SITES = {
     "2degrees": "2degrees.nz (business plans under 2degrees.nz/business)",
@@ -116,17 +116,31 @@ with sync_playwright() as p:
 """
 
 
-def render_page(url):
+RENDER_LOCK = DATA_DIR / ".render.lock"
+
+
+def render_page(url, tries=2):
+    """Visible text of a provider page in a headless browser. One browser at a time across the web and worker
+    processes (the small droplet can't run two), with a retry."""
+    import fcntl
     if not re.match(DOMAIN_RE, url):
         return "Only provider websites can be rendered."
-    try:
-        r = subprocess.run([sys.executable, "-c", RENDER_SCRIPT, url], capture_output=True, text=True, timeout=90)
-    except subprocess.TimeoutExpired:
-        return "Timed out rendering the page."
-    if r.returncode != 0:
-        return "Could not render: " + (r.stderr.strip().splitlines() or ["unknown error"])[-1][:300]
-    text = re.sub(r"\n{3,}", "\n\n", r.stdout)
-    return text[:60000]
+    last = "Could not render."
+    for _ in range(tries):
+        with open(RENDER_LOCK, "w") as lock:
+            fcntl.flock(lock, fcntl.LOCK_EX)
+            try:
+                r = subprocess.run([sys.executable, "-c", RENDER_SCRIPT, url], capture_output=True, text=True, timeout=120)
+            except subprocess.TimeoutExpired:
+                last = "Timed out rendering the page."
+                continue
+            finally:
+                fcntl.flock(lock, fcntl.LOCK_UN)
+        if r.returncode != 0:
+            last = "Could not render: " + (r.stderr.strip().splitlines() or ["unknown error"])[-1][:300]
+            continue
+        return re.sub(r"\n{3,}", "\n\n", r.stdout)[:60000]
+    return last
 
 
 def _run_agent(prompt, save_tool, purpose, max_rounds=14):
