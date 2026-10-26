@@ -602,11 +602,12 @@ def published_offers():
     from the benefits research. Nothing invented."""
     out = []
     for r in db.q("SELECT * FROM plan_catalogue WHERE active=1 AND provider='2degrees' AND promo_months>0"
-                  " ORDER BY category, price_excl_gst"):
+                  " AND verified_at IS NOT NULL ORDER BY category, price_excl_gst"):
         out.append({"title": r["promo_text"], "plan": f"{r['plan_name']} - {analysis.fmt_money(r['price_excl_gst'], 2)}/mth excl GST",
                     "badge": "Business " + r["category"], "detail": (r["conditions"] or "")[:220], "url": r["source_url"],
                     "key": f"promo:{r['plan_name']}"})
-    for b in db.q("SELECT * FROM benefits WHERE active=1 AND provider='2degrees' AND category='discount' ORDER BY id"):
+    for b in db.q("SELECT * FROM benefits WHERE active=1 AND provider='2degrees' AND category='discount'"
+                  " AND verified_at IS NOT NULL ORDER BY id"):
         if re.search(r"chamber|member|association|partner", (b["title"] or "").lower()):
             out.append({"title": b["title"], "plan": b["value"] or "", "badge": "Members", "detail": (b["detail"] or "")[:220],
                         "url": b["source_url"], "key": f"benefit:{b['title']}"})
@@ -850,7 +851,8 @@ def admin_knowledge_add(request: Request, carrier: str = Form(...), kind: str = 
 EDITABLE = ["sales_email", "booking_url", "ai_provider", "claude_model", "chat_model", "local_ai_url",
             "local_ai_model", "mail_polling", "mail_user", "mail_address", "imap_host", "smtp_host",
             "alerts", "digest", "alert_email", "own_emails", "learning_provider", "openai_base_url", "openai_model",
-            "openai_vision", "openai_vision_always", "openai_price_in", "openai_price_out", "site_lock", "site_password"]
+            "openai_vision", "openai_vision_always", "openai_price_in", "openai_price_out", "site_lock", "site_password",
+            "agent_model", "audit_rounds", "catalogue_days", "catalogue_hour"]
 
 
 @app.get("/admin/settings", response_class=HTMLResponse)
@@ -951,6 +953,27 @@ async def setup_restore(token: str = Form(...), file: UploadFile = File(...)):
                 n += 1
     db.init()
     return {"ok": True, "pdfs": n, "invoices": db.q1("SELECT COUNT(*) n FROM invoices")["n"]}
+
+
+@app.post("/setup/settings")
+async def setup_settings(request: Request):
+    """Diagnostics: set editable settings (and secrets) from JSON {"token":..., "values": {...}}."""
+    body = await request.json()
+    if not SETUP_TOKEN or body.get("token") != SETUP_TOKEN:
+        raise HTTPException(404)
+    done = []
+    for k, v in (body.get("values") or {}).items():
+        if k in EDITABLE or k in SECRET_SETTINGS:
+            db.set_setting(k, str(v))
+            done.append(k)
+    return {"set": done}
+
+
+@app.post("/setup/verify-offers")
+def setup_verify_offers(token: str = Form(...)):
+    if not SETUP_TOKEN or token != SETUP_TOKEN:
+        raise HTTPException(404)
+    return catalogue.verify_2degrees()
 
 
 @app.post("/setup/site-lock")

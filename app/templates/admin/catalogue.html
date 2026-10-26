@@ -2,7 +2,7 @@
 {% block admin %}
 <div class="card" style="margin-bottom:20px;display:flex;justify-content:space-between;gap:20px;align-items:center;flex-wrap:wrap">
   <div><h3>Plan catalogue</h3>
-  <p class="small muted" style="margin-top:4px;max-width:60em">An agent reads Spark, One NZ and 2degrees' own websites and records their current business mobile and broadband plans: prices, what's included and the conditions. Used by the analysis reviewer, Ask AI and the bill reader. Refreshes every {{ days }} days. A full refresh takes about 20 minutes and costs about US$25-30.</p>
+  <p class="small muted" style="margin-top:4px;max-width:60em">Every night the plan pages of every provider are re-read; the research agent runs only where a page changed (or weekly), and 2degrees offers are re-verified so customers only ever see what is on 2degrees.nz right now. An agent reads the providers' own websites and records their current business mobile and broadband plans: prices, what's included and the conditions. Used by the analysis reviewer, Ask AI and the bill reader. Refreshes every {{ days }} days. A full refresh takes about 20 minutes and costs about US$25-30.</p>
   {% if last_result %}<p class="tiny" style="margin-top:6px">Last run: {{ last_result }}</p>{% endif %}</div>
   <form method="post" action="/admin/catalogue/refresh"><button class="btn" {{ 'disabled' if state in ('1','running') }}>{{ 'Refreshing...' if state == 'running' else ('Queued' if state == '1' else 'Refresh now') }}</button></form>
 </div>

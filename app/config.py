@@ -34,12 +34,15 @@ SETTING_DEFAULTS = {
     "openai_vision_always": "off",  # send page images for every bill, not just scanned ones
     "openai_price_in": "0",  # USD per million input tokens, for the cost log
     "openai_price_out": "0",
-    "claude_model": "claude-opus-5-5",
-    "chat_model": "claude-opus-5-5",
+    "claude_model": "claude-sonnet-5-5",  # bill reading on Claude (fallback when the OpenAI-compatible reader fails)
+    "chat_model": "claude-sonnet-5-5",  # Ask AI
+    "agent_model": "claude-sonnet-5-5",  # plan catalogue / benefits research agents (tool use)
+    "audit_rounds": "3",  # learning: re-audit a bill until the auditor finds nothing, up to this many rounds
     "local_ai_url": "",  # e.g. http://macbook.tailnet.ts.net:1234/v1
     "local_ai_model": "qwen3.8-27b-splash",
     "learning_mode": "on",  # audit + format guide + analysis review on every bill
-    "catalogue_days": "14",  # how often the plan catalogue agent re-reads provider websites
+    "catalogue_days": "7",  # re-read a provider's plan pages at least this often; every night if the pages changed
+    "catalogue_hour": "2",  # NZ hour for the nightly catalogue run
     "parser_min_bills": "10",  # audited bills needed before generating a deterministic parser
     "parser_activate_streak": "10",  # consecutive shadow matches before a parser can be activated
     "site_lock": "off",  # front-end password: visitors see a blurred page and a password prompt; emails are held

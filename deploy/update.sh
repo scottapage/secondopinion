@@ -11,6 +11,7 @@ VENV=/opt/secondopinion/venv
 BRANCH=$(cat /var/lib/secondopinion/deploy-branch 2>/dev/null | tr -cd 'A-Za-z0-9._/-' || true)
 BRANCH=${BRANCH:-main}
 cd "$APP"
+git config --system --get-all safe.directory | grep -qx "$APP" || git config --system --add safe.directory "$APP"
 git fetch -q origin "$BRANCH"
 OLD=$(git rev-parse HEAD); NEW=$(git rev-parse "origin/$BRANCH")
 if [ "$OLD" = "$NEW" ] && [ "${FORCE:-0}" != "1" ]; then exit 0; fi

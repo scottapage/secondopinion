@@ -53,21 +53,29 @@ def mail_loop():
 
 
 def catalogue_loop():
-    """Refresh the plan catalogue on request, and every `catalogue_days` days."""
+    """Nightly (catalogue_hour, NZ time): re-read every provider's plan pages, run the research agent where they
+    changed, re-verify the 2degrees offers. Also runs when requested from Admin."""
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
     time.sleep(30)
     while True:
         try:
-            days = float(db.get_setting("catalogue_days") or 14)
-            last = float(db.get_setting("catalogue_refreshed_at") or 0)
-            if db.get_setting("catalogue_requested") == "1" or time.time() - last > days * 86400:
+            now = datetime.now(ZoneInfo("Pacific/Auckland"))
+            today = now.strftime("%Y-%m-%d")
+            hour = int(db.get_setting("catalogue_hour") or 2)
+            requested = db.get_setting("catalogue_requested") == "1"
+            nightly = now.hour >= hour and db.get_setting("catalogue_ran") != today
+            if requested or nightly:
                 db.set_setting("catalogue_requested", "running")
-                catalogue.refresh_all()
-                catalogue.refresh_all_benefits()
+                db.set_setting("catalogue_ran", today)
+                catalogue.refresh_all(force=requested)
+                if requested:
+                    catalogue.refresh_all_benefits()
                 db.set_setting("catalogue_requested", "0")
         except Exception:
             traceback.print_exc()
             db.set_setting("catalogue_requested", "0")
-        time.sleep(300)
+        time.sleep(120)
 
 
 def meter_loop():

@@ -403,11 +403,18 @@ def learn_from(invoice_id, path, text, data):
     if db.get_setting("learning_mode") != "on":
         return data
     carrier = data.get("carrier")
-    try:
-        data, result = audit(invoice_id, path, data)
-    except Exception:
-        traceback.print_exc()
-        result = {"corrections": [], "format_observations": []}
+    result = {"corrections": [], "format_observations": []}
+    # Audit, apply, audit again - until an independent read finds nothing material (bounded by audit_rounds)
+    for _ in range(max(1, int(db.get_setting("audit_rounds") or 3))):
+        try:
+            data, r = audit(invoice_id, path, data)
+        except Exception:
+            traceback.print_exc()
+            break
+        result["corrections"] += r.get("corrections", [])
+        result["format_observations"] += r.get("format_observations", [])
+        if r.get("verdict") != "corrected":
+            break
     try:
         update_guide(invoice_id, carrier, text, data, result)
     except Exception:

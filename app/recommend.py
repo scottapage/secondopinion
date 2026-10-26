@@ -88,7 +88,7 @@ def plan_for(family, team=False):
     r = find_plan(family, team)
     if r:
         promo = None
-        if (r.get("promo_months") or 0) > 0:
+        if (r.get("promo_months") or 0) > 0 and r.get("verified_at"):
             pm, pp, price = min(int(r["promo_months"]), 12), float(r.get("promo_price") or 0), r["price_excl_gst"]
             promo = {"text": r.get("promo_text") or "", "months": pm, "promo_price": pp, "term": r.get("term_months") or 0,
                      "first_year": round(pp * pm + price * (12 - pm), 2), "saving_year": round((price - pp) * pm, 2)}
@@ -165,7 +165,9 @@ ROAM_FALLBACK = {"2degrees": 8.0, "one": 8.70, "spark": 7.0}
 
 
 def benefits(provider=None, category=None):
-    rows = db.q("SELECT * FROM benefits WHERE active=1 ORDER BY category, id")
+    """Active benefits; 2degrees rows only once the nightly check has confirmed them on 2degrees.nz."""
+    rows = db.q("SELECT * FROM benefits WHERE active=1 AND (provider<>'2degrees' OR verified_at IS NOT NULL)"
+                " ORDER BY category, id")
     return [r for r in rows if (not provider or r["provider"] == provider) and (not category or r["category"] == category)]
 
 

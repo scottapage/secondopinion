@@ -14,7 +14,19 @@ SITES = {
     "2degrees": "2degrees.nz (business plans under 2degrees.nz/business)",
     "spark": "spark.co.nz (business plans under spark.co.nz/business)",
     "one": "one.nz (business plans under one.nz/business)",
+    "skinny": "skinny.co.nz (mobile and broadband; Skinny has no separate business range - record the standard plans)",
+    "kogan": "koganmobile.co.nz and kogan.com/nz (mobile and broadband)",
+    "slingshot": "slingshot.co.nz (broadband and mobile)",
+    "orcon": "orcon.net.nz (broadband and mobile)",
+    "contact": "contact.co.nz (broadband bundled with energy)",
+    "mercury": "mercury.co.nz (broadband, including with energy)",
+    "electric_kiwi": "electrickiwi.co.nz (broadband with power)",
+    "sky": "sky.co.nz/broadband (Sky Broadband)",
+    "now": "nownz.co.nz (NOW broadband)",
+    "voyager": "voyager.nz (broadband and business plans)",
 }
+BENEFIT_SITES = {k: SITES[k] for k in ("2degrees", "spark", "one")}
+DOMAIN_RE = r"^https?://([a-z0-9-]+\.)*(2degrees\.nz|spark\.co\.nz|one\.nz|skinny\.co\.nz|koganmobile\.co\.nz|kogan\.com|slingshot\.co\.nz|orcon\.net\.nz|contact\.co\.nz|mercury\.co\.nz|electrickiwi\.co\.nz|sky\.co\.nz|nownz\.co\.nz|voyager\.nz)(/|$)"
 
 PROMPT = """You are cataloguing the CURRENT business {category} plans offered by {provider} in New Zealand, from the
 provider's own website: {site}. Use web search and fetch the plan pages themselves - do not rely on memory or
@@ -105,7 +117,7 @@ with sync_playwright() as p:
 
 
 def render_page(url):
-    if not re.match(r"^https?://(www\.)?(2degrees\.nz|spark\.co\.nz|one\.nz)(/|$)", url):
+    if not re.match(DOMAIN_RE, url):
         return "Only provider websites can be rendered."
     try:
         r = subprocess.run([sys.executable, "-c", RENDER_SCRIPT, url], capture_output=True, text=True, timeout=90)
@@ -119,7 +131,7 @@ def render_page(url):
 
 def _run_agent(prompt, save_tool, purpose, max_rounds=14):
     """Agentic loop with server web tools, our render_page tool, and a single save tool. Returns the save input."""
-    model = db.get_setting("claude_model")
+    model = db.get_setting("agent_model") or db.get_setting("claude_model")
     cl = ai.client()
     messages = [{"role": "user", "content": prompt}]
     tools = [{"type": "web_search_20260209", "name": "web_search", "max_uses": 16},
@@ -170,15 +182,58 @@ def refresh(provider, category):
     return len(saved["plans"])
 
 
-def refresh_all():
+def _page_hash(url):
+    import hashlib
+    text = render_page(url)
+    # Drop numbers that churn (dates, counters) only loosely: hash the visible text as-is
+    return hashlib.sha1(text.encode()).hexdigest() if text and not text.startswith(("Only provider", "Timed out", "Could not")) else None
+
+
+def pages_changed(provider, category):
+    """Re-render the pages the last run read; True if any changed, or if nothing was ever recorded."""
+    rows = db.q("SELECT DISTINCT source_url, page_hash FROM plan_catalogue WHERE provider=? AND category=? AND active=1",
+                (provider, category))
+    urls = {r["source_url"]: r["page_hash"] for r in rows if r["source_url"]}
+    if not urls:
+        return True
+    for url, old in list(urls.items())[:6]:
+        new = _page_hash(url)
+        if new and new != old:
+            return True
+    return False
+
+
+def stamp_hashes(provider, category):
+    for r in db.q("SELECT DISTINCT source_url FROM plan_catalogue WHERE provider=? AND category=? AND active=1",
+                  (provider, category)):
+        if r["source_url"]:
+            db.x("UPDATE plan_catalogue SET page_hash=? WHERE provider=? AND category=? AND source_url=?",
+                 (_page_hash(r["source_url"]), provider, category, r["source_url"]))
+
+
+def refresh_all(force=False):
+    """The nightly run: every provider, both categories; the agent (which costs money) only runs when a provider's
+    pages changed since last time or the catalogue is older than catalogue_days."""
     results = {}
+    max_age = float(db.get_setting("catalogue_days") or 7) * 86400
     for provider in SITES:
         for category in ("mobile", "broadband"):
+            key = f"{provider}:{category}"
             try:
-                results[f"{provider}:{category}"] = refresh(provider, category)
+                note = json.loads(db.get_setting(f"catalogue_note:{provider}:{category}") or "{}")
+                stale = time.time() - float(note.get("at") or 0) > max_age
+                if force or stale or pages_changed(provider, category):
+                    results[key] = refresh(provider, category)
+                    stamp_hashes(provider, category)
+                else:
+                    results[key] = "unchanged"
             except Exception as e:
                 traceback.print_exc()
-                results[f"{provider}:{category}"] = f"error: {e}"[:200]
+                results[key] = f"error: {e}"[:200]
+    try:
+        results["verify"] = verify_2degrees()
+    except Exception as e:
+        results["verify"] = f"error: {e}"[:200]
     db.set_setting("catalogue_refreshed_at", str(time.time()))
     db.set_setting("catalogue_last_result", json.dumps(results))
     return results
@@ -187,6 +242,52 @@ def refresh_all():
 def due():
     last = float(db.get_setting("catalogue_refreshed_at") or 0)
     return time.time() - last > 7 * 24 * 3600
+
+
+# ---------- verification: only offers we can see on 2degrees.nz right now are shown to customers ----------
+
+def _tokens(text):
+    """The checkable bits of an offer: percentages, dollar amounts, 'N months', and the longer words."""
+    t = (text or "").lower()
+    nums = re.findall(r"\d+\s*%|\$\s?\d+(?:\.\d+)?|\d+\s*months?|\d+\s*gb", t)
+    words = [w for w in re.findall(r"[a-z]{5,}", t) if w not in ("business", "months", "month", "offer", "plans", "plan")]
+    return [re.sub(r"\s+", "", n) for n in nums], words
+
+
+def _present(page_text, text):
+    page = re.sub(r"\s+", "", (page_text or "").lower())
+    nums, words = _tokens(text)
+    if nums and not all(n in page for n in nums):
+        return False
+    hits = sum(1 for w in words if w in page)
+    return bool(nums) or hits >= max(2, len(words) // 2) if words else bool(nums)
+
+
+def verify_2degrees():
+    """Render each 2degrees offer's source page and keep only the ones whose key terms are still on it."""
+    now = time.time()
+    cache = {}
+
+    def text_of(url):
+        if url not in cache:
+            cache[url] = render_page(url) if url and re.match(DOMAIN_RE, url) else ""
+        return cache[url]
+
+    kept = dropped = 0
+    for b in db.q("SELECT * FROM benefits WHERE provider='2degrees' AND active=1"):
+        ok = _present(text_of(b["source_url"]), f"{b['title']} {b['value']}")
+        db.x("UPDATE benefits SET verified_at=? WHERE id=?", (now if ok else None, b["id"]))
+        kept += ok
+        dropped += not ok
+    for r in db.q("SELECT * FROM plan_catalogue WHERE provider='2degrees' AND active=1"):
+        ok = True
+        if r["promo_text"]:
+            ok = _present(text_of(r["source_url"]), r["promo_text"])
+        db.x("UPDATE plan_catalogue SET verified_at=? WHERE id=?", (now if ok else None, r["id"]))
+        kept += ok
+        dropped += not ok
+    db.set_setting("offers_verified_at", str(now))
+    return {"verified": kept, "unconfirmed": dropped}
 
 
 # ---------- provider benefits (beyond plan price) ----------
@@ -254,7 +355,7 @@ def refresh_benefits(provider):
 
 def refresh_all_benefits():
     results = {}
-    for provider in SITES:
+    for provider in BENEFIT_SITES:
         try:
             results[provider] = refresh_benefits(provider)
         except Exception as e:
