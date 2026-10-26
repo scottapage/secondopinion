@@ -852,7 +852,7 @@ EDITABLE = ["sales_email", "booking_url", "ai_provider", "claude_model", "chat_m
             "local_ai_model", "mail_polling", "mail_user", "mail_address", "imap_host", "smtp_host",
             "alerts", "digest", "alert_email", "own_emails", "learning_provider", "openai_base_url", "openai_model",
             "openai_vision", "openai_vision_always", "openai_price_in", "openai_price_out", "site_lock", "site_password",
-            "agent_model", "audit_rounds", "catalogue_days", "catalogue_hour"]
+            "agent_model", "audit_rounds", "catalogue_days", "catalogue_hour", "openai_temperature"]
 
 
 @app.get("/admin/settings", response_class=HTMLResponse)

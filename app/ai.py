@@ -104,9 +104,11 @@ def openai_json(system, text, schema, purpose, invoice_id=None, images=None, bas
     body = {
         "model": model,
         "messages": [{"role": "system", "content": system}, {"role": "user", "content": user_content}],
-        "temperature": 0,
         "response_format": {"type": "json_schema", "json_schema": {"name": "result", "strict": True, "schema": schema}},
     }
+    temp = db.get_setting("openai_temperature")
+    if temp not in ("", None):
+        body["temperature"] = float(temp)
     headers = {"Content-Type": "application/json"}
     if key:
         headers["Authorization"] = f"Bearer {key}"
@@ -122,16 +124,28 @@ def openai_json(system, text, schema, purpose, invoice_id=None, images=None, bas
         except urllib.error.URLError as e:
             raise AIError(f"Could not reach {base}: {e.reason}")
 
-    try:
-        resp = call(body)
-    except AIError as e:
-        # Some servers reject json_schema response formats; retry with a plain JSON instruction
-        if "400" not in str(e) and "response_format" not in str(e):
-            raise
-        body.pop("response_format")
-        body["messages"][0]["content"] += "\n\nRespond with a single JSON object only, matching this JSON schema:\n" + \
-            json.dumps(schema)
-        resp = call(body)
+    # Servers differ in what they accept: drop the parameter a 400 complains about and try again (twice at most)
+    resp = None
+    for _ in range(3):
+        try:
+            resp = call(body)
+            break
+        except AIError as e:
+            msg = str(e)
+            if "400" not in msg:
+                raise
+            if "temperature" in msg and "temperature" in body:
+                body.pop("temperature")
+            elif "response_format" in msg or "json_schema" in msg or "schema" in msg:
+                if "response_format" not in body:
+                    raise
+                body.pop("response_format")
+                body["messages"][0]["content"] += "\n\nRespond with a single JSON object only, matching this JSON schema:\n" + \
+                    json.dumps(schema)
+            else:
+                raise
+    if resp is None:
+        raise AIError("The model rejected the request")
     usage = resp.get("usage") or {}
     log_usage(purpose, provider, model, usage.get("prompt_tokens"), usage.get("completion_tokens"), invoice_id)
     content = resp["choices"][0]["message"]["content"] or ""
