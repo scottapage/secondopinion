@@ -1,3 +1,4 @@
+# Certificates: Let's Encrypt via Caddy (HTTP challenge on port 80)
 {
 	email scott.page@me.com
 }
