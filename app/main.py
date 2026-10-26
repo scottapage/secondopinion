@@ -973,7 +973,8 @@ async def setup_settings(request: Request):
 def setup_verify_offers(token: str = Form(...)):
     if not SETUP_TOKEN or token != SETUP_TOKEN:
         raise HTTPException(404)
-    return catalogue.verify_2degrees()
+    background(catalogue.verify_2degrees)
+    return {"started": True}
 
 
 @app.post("/setup/site-lock")
@@ -1279,6 +1280,7 @@ def setup_learning(token: str = ""):
                           " WHERE active=1 GROUP BY provider, category"),
         "catalogue_last_result": db.get_setting("catalogue_last_result"),
         "catalogue_state": db.get_setting("catalogue_requested"),
+        "offers_verify_result": json.loads(db.get_setting("offers_verify_result") or "null"),
         "ai_by_purpose": db.q("SELECT purpose, COUNT(*) calls, ROUND(SUM(cost_usd),2) usd FROM ai_usage"
                               " GROUP BY purpose"),
     }

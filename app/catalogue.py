@@ -282,9 +282,12 @@ def verify_2degrees():
     now = time.time()
     cache = {}
 
+    debug = {}
+
     def text_of(url):
         if url not in cache:
             cache[url] = render_page(url) if url and re.match(DOMAIN_RE, url) else ""
+            debug[url] = cache[url][:80] if cache[url].startswith(("Only", "Timed", "Could")) else f"{len(cache[url])} chars"
         return cache[url]
 
     kept = dropped = 0
@@ -301,7 +304,9 @@ def verify_2degrees():
         kept += ok
         dropped += not ok
     db.set_setting("offers_verified_at", str(now))
-    return {"verified": kept, "unconfirmed": dropped}
+    result = {"verified": kept, "unconfirmed": dropped, "pages": debug, "at": now}
+    db.set_setting("offers_verify_result", json.dumps(result))
+    return result
 
 
 # ---------- provider benefits (beyond plan price) ----------
